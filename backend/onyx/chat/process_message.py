@@ -254,6 +254,7 @@ def _get_force_search_settings(
             and new_msg_req.retrieval_options.run_search
             == OptionalSearchSetting.ALWAYS,
             new_msg_req.search_doc_ids,
+            new_msg_req.query_override is not None,
             DISABLE_LLM_CHOOSE_SEARCH,
         ]
     )
@@ -425,9 +426,7 @@ def stream_chat_message_objects(
         )
 
         search_settings = get_current_search_settings(db_session)
-        document_index = get_default_document_index(
-            primary_index_name=search_settings.index_name, secondary_index_name=None
-        )
+        document_index = get_default_document_index(search_settings, None)
 
         # Every chat Session begins with an empty root message
         root_message = get_or_create_root_message(
@@ -498,14 +497,6 @@ def stream_chat_message_objects(
                         f"Final message id: {final_msg.id}, "
                         f"existing assistant message id: {existing_assistant_message_id}"
                     )
-
-        # Disable Query Rephrasing for the first message
-        # This leads to a better first response since the LLM rephrasing the question
-        # leads to worst search quality
-        if not history_msgs:
-            new_msg_req.query_override = (
-                new_msg_req.query_override or new_msg_req.message
-            )
 
         # load all files needed for this chat chain in memory
         files = load_all_chat_files(
