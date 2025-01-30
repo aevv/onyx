@@ -1,5 +1,6 @@
 import {
   AxeroIcon,
+  AzureDevopsIcon,
   BookstackIcon,
   ClickupIcon,
   ConfluenceIcon,
@@ -113,6 +114,12 @@ export const SOURCE_METADATA_MAP: SourceMap = {
     displayName: "Gitlab",
     category: SourceCategory.CodeRepository,
     docs: "https://docs.onyx.app/connectors/gitlab",
+  },
+  azuredevops: {
+    icon: AzureDevopsIcon,
+    displayName: "AzureDevops",
+    category: SourceCategory.CodeRepository,
+    docs: "https://docs.onyx.app/connectors/azuredevops",
   },
   confluence: {
     icon: ConfluenceIcon,

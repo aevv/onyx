@@ -391,6 +391,10 @@ GITLAB_CONNECTOR_INCLUDE_CODE_FILES = (
     os.environ.get("GITLAB_CONNECTOR_INCLUDE_CODE_FILES", "").lower() == "true"
 )
 
+AZUREDEVOPS_CONNECTOR_INCLUDE_CODE_FILES = (
+    os.environ.get("AZUREDEVOPS_CONNECTOR_INCLUDE_CODE_FILES", "").lower() == "true"
+)
+
 # Typically set to http://localhost:3000 for OAuth connector development
 CONNECTOR_LOCALHOST_OVERRIDE = os.getenv("CONNECTOR_LOCALHOST_OVERRIDE")
 

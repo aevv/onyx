@@ -3,6 +3,7 @@ import {
   Connector,
   GithubConfig,
   GitlabConfig,
+  AzureDevOpsConfig,
   GoogleDriveConfig,
   JiraConfig,
   SlackConfig,
@@ -45,6 +46,12 @@ export const ConnectorTitle = ({
     additionalMetadata.set(
       "Repo",
       `${typedConnector.connector_specific_config.project_owner}/${typedConnector.connector_specific_config.project_name}`
+    );
+  } else if (connector.source === "azuredevops") {
+    const typedConnector = connector as Connector<AzureDevOpsConfig>;
+    additionalMetadata.set(
+      "Repo",
+      `${typedConnector.connector_specific_config.project_name}/${typedConnector.connector_specific_config.repo_name}`
     );
   } else if (connector.source === "confluence") {
     const typedConnector = connector as Connector<ConfluenceConfig>;

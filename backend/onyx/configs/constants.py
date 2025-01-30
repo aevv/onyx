@@ -113,6 +113,7 @@ class DocumentSource(str, Enum):
     REQUESTTRACKER = "requesttracker"
     GITHUB = "github"
     GITLAB = "gitlab"
+    AZUREDEVOPS = "azuredevops"
     GURU = "guru"
     BOOKSTACK = "bookstack"
     CONFLUENCE = "confluence"

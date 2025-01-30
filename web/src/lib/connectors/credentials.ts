@@ -35,6 +35,11 @@ export interface GitlabCredentialJson {
   gitlab_access_token: string;
 }
 
+export interface AzureDevopsCredentialJson {
+  azuredevops_access_token: string;
+  azuredevops_url: string;
+}
+
 export interface BookstackCredentialJson {
   bookstack_base_url: string;
   bookstack_api_token_id: string;
@@ -227,6 +232,10 @@ export const credentialTemplates: Record<ValidSources, any> = {
     gitlab_url: "",
     gitlab_access_token: "",
   } as GitlabCredentialJson,
+  azuredevops: {
+    azuredevops_access_token: "",
+    azuredevops_url: "",
+  } as AzureDevopsCredentialJson,
   slack: { slack_bot_token: "" } as SlackCredentialJson,
   bookstack: {
     bookstack_base_url: "",
@@ -353,6 +362,10 @@ export const credentialDisplayNames: Record<string, string> = {
   // Gitlab
   gitlab_url: "GitLab URL",
   gitlab_access_token: "GitLab Access Token",
+
+  // Azure DevOps
+  azuredevops_access_token: "Azure Devops PAT",
+  azuredevops_url: "Azure DevOps URL",
 
   // Bookstack
   bookstack_base_url: "Bookstack Base URL",

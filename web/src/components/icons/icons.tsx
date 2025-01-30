@@ -1016,6 +1016,13 @@ export const GitlabIcon = ({
   <LogoIcon size={size} className={className} src="/Gitlab.png" />
 );
 
+export const AzureDevopsIcon = ({
+  size = 16,
+  className = defaultTailwindCSS,
+}: IconProps) => (
+  <LogoIcon size={size} className={className} src="/AzureDevops.png" />
+);
+
 export const GithubIcon = ({
   size = 16,
   className = defaultTailwindCSS,
