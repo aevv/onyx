@@ -170,7 +170,8 @@ class AzureDevopsConnector(LoadConnector, PollConnector):
             # Get PRs
             git_client = self.azdo_client.clients.get_git_client()
             repo = git_client.get_repository(project=self.project_name, repository_id=self.repo_name)
-            prs = git_client.get_pull_requests(project=self.project_name, repository_id=repo.id)
+            search_criteria = GitPullRequestSearchCriteria(repository_id=repo.id, status="all")
+            prs = git_client.get_pull_requests(project=self.project_name, search_criteria=search_criteria)
             for pr_batch in _batch_azuredevops_objects(prs, self.batch_size):
                 pr_doc_batch: list[Document] = []
                 for pr in pr_batch:
