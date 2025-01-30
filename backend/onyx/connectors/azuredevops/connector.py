@@ -167,22 +167,23 @@ class AzureDevopsConnector(LoadConnector, PollConnector):
                 repo_doc_batch.append(_convert_repo_to_document(repo_batch[0]))
             yield repo_doc_batch
             
-            items = git_client.get_items(repository_id=repo.id, scope_path="/", recursion_level="full")
-            for item_batch in _batch_azuredevops_objects(items, self.batch_size):
-                code_doc_batch: list[Document] = []
-                for item in item_batch:   
-                    time.sleep(0.3)                 
-                    code_file = git_client.get_item(repository_id=repo.id, path=item.path, include_content=True)
-                    code_doc_batch.append(
-                        _convert_code_to_document(
-                            repo.id,
-                            code_file,
-                            self.azdo_client.url,
-                            self.project_name,
-                        )
-                    )
-                if code_doc_batch:
-                    yield code_doc_batch
+            # Need to change to a git clone and parse from file system
+            # items = git_client.get_items(repository_id=repo.id, scope_path="/", recursion_level="full")
+            # for item_batch in _batch_azuredevops_objects(items, self.batch_size):
+            #     code_doc_batch: list[Document] = []
+            #     for item in item_batch:   
+            #         time.sleep(0.3)                 
+            #         code_file = git_client.get_item(repository_id=repo.id, path=item.path, include_content=True)
+            #         code_doc_batch.append(
+            #             _convert_code_to_document(
+            #                 repo.id,
+            #                 code_file,
+            #                 self.azdo_client.url,
+            #                 self.project_name,
+            #             )
+            #         )
+            #     if code_doc_batch:
+            #         yield code_doc_batch
         
         if self.include_prs:
             # Get PRs
