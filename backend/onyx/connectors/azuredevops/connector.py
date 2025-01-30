@@ -162,8 +162,8 @@ class AzureDevopsConnector(LoadConnector, PollConnector):
             repo = git_client.get_repository(project=self.project_name, repository_id=self.repo_name)
             # batch the repo
             repo_doc_batch: list[Document] = []
-            for repo_item in _batch_azuredevops_objects([repo], self.batch_size):
-                repo_doc_batch.append(_convert_repo_to_document(repo_item))
+            for repo_batch in _batch_azuredevops_objects([repo], self.batch_size):
+                repo_doc_batch.append(_convert_repo_to_document(repo_batch[0]))
             yield repo_doc_batch
             
             items = git_client.get_items(repository_id=repo.id, scope_path="/", recursion_level="full")
