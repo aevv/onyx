@@ -76,10 +76,18 @@ def _convert_pull_request_to_document(pr: GitPullRequest) -> Document:
     )
     return doc
 
+def format_date(date: str) -> datetime:
+    formats = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S.%fZ"]  # Handles both cases
+    for fmt in formats:
+        try:
+            return datetime.strptime(date, fmt)
+        except ValueError:
+            continue
+    raise ValueError(f"Time data {date} does not match known formats")
 
 def _convert_workitem_to_document(work_item: WorkItem, base_url) -> Document:
     work_item_url = f"{base_url}/_workItems/edit/{work_item.id}"
-    changed_date = work_item.fields.get("System.ChangedDate")
+    changed_date = format_date(work_item.fields.get("System.ChangedDate"))
     # convert string to datetime
     date = datetime.strptime(changed_date, "%Y-%m-%dT%H:%M:%S.%fZ")
     doc = Document(
@@ -148,7 +156,7 @@ class AzureDevopsConnector(LoadConnector, PollConnector):
             raise ConnectorMissingCredentialError("AzureDevops")
         
         
-        if self.include_code_files:
+        if True:
             # Get code
             git_client = self.azdo_client.clients.get_git_client()
             repo = git_client.get_repository(project=self.project_name, repository_id=self.repo_name)
