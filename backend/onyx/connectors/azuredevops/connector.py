@@ -77,8 +77,8 @@ def _convert_pull_request_to_document(pr: GitPullRequest) -> Document:
     return doc
 
 
-def _convert_workitem_to_document(work_item: WorkItem) -> Document:
-    work_item_url = work_item._links["html"]["href"]
+def _convert_workitem_to_document(work_item: WorkItem, base_url) -> Document:
+    work_item_url = f"{base_url}/_workItems/edit/{work_item.id}"
     doc = Document(
         id=work_item_url,
         sections=[Section(link=work_item_url, text=work_item.fields.get("System.Description") or "")],
@@ -136,6 +136,7 @@ class AzureDevopsConnector(LoadConnector, PollConnector):
 
     def load_credentials(self, credentials: dict[str, Any]) -> dict[str, Any] | None:
         azdo_credentials = BasicAuthentication("", credentials["azuredevops_access_token"])
+        self.base_url = credentials["azuredevops_url"]
         self.azdo_client = Connection(base_url=credentials["azuredevops_url"], creds=azdo_credentials)        
         return None
 
@@ -194,7 +195,7 @@ class AzureDevopsConnector(LoadConnector, PollConnector):
                 work_items.extend(work_items_batch)
 
             for work_item in work_items:
-                yield _convert_workitem_to_document(work_item)        
+                yield _convert_workitem_to_document(work_item, self.base_url)        
 
 
     def load_from_state(self) -> GenerateDocumentsOutput:
