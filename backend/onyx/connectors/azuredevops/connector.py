@@ -6,6 +6,7 @@ from collections.abc import Iterator
 from datetime import datetime
 from datetime import timezone
 from typing import Any
+import time
 
 from azure.devops.connection import Connection
 from msrest.authentication import BasicAuthentication
@@ -169,7 +170,8 @@ class AzureDevopsConnector(LoadConnector, PollConnector):
             items = git_client.get_items(repository_id=repo.id, scope_path="/", recursion_level="full")
             for item_batch in _batch_azuredevops_objects(items, self.batch_size):
                 code_doc_batch: list[Document] = []
-                for item in item_batch:                    
+                for item in item_batch:   
+                    time.sleep(0.3)                 
                     code_file = git_client.get_item(repository_id=repo.id, path=item.path, include_content=True)
                     code_doc_batch.append(
                         _convert_code_to_document(
