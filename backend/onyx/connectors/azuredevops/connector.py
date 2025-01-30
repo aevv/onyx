@@ -55,7 +55,7 @@ def get_author(author: Any) -> BasicExpertInfo:
 def _convert_repo_to_document(repo: GitRepository) -> Document:
     doc = Document(
         id=repo.id,
-        sections=[Section(link=repo.url, text=repo.description or "")],
+        sections=[Section(link=repo.url, text=repo.name)],
         source=DocumentSource.AZUREDEVOPS,
         semantic_identifier=repo.name,
         doc_updated_at=repo.creation_date.replace(tzinfo=timezone.utc),
