@@ -1275,6 +1275,13 @@ export interface GitlabConfig {
   include_issues: boolean;
 }
 
+export interface AzureDevopsConfig {
+  repo_name: string;
+  project_name: string;
+  include_prs: boolean;
+  include_workitems: boolean;
+}
+
 export interface GoogleDriveConfig {
   include_shared_drives?: boolean;
   shared_drive_urls?: string;

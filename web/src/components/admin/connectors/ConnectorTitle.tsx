@@ -3,7 +3,7 @@ import {
   Connector,
   GithubConfig,
   GitlabConfig,
-  AzureDevOpsConfig,
+  AzureDevopsConfig,
   GoogleDriveConfig,
   JiraConfig,
   SlackConfig,
