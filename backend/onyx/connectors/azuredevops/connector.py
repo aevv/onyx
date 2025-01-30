@@ -59,7 +59,7 @@ def _convert_repo_to_document(repo: GitRepository) -> Document:
         source=DocumentSource.AZUREDEVOPS,
         semantic_identifier=repo.name,
         doc_updated_at=repo.creation_date.replace(tzinfo=timezone.utc),
-        primary_owners=[get_author(repo.created_by)],
+        primary_owners=[],
         metadata={"type": "Repository"},
     )
     return doc
@@ -71,7 +71,7 @@ def _convert_pull_request_to_document(pr: GitPullRequest) -> Document:
         source=DocumentSource.AZUREDEVOPS,
         semantic_identifier=pr.title,
         doc_updated_at=pr.creation_date.replace(tzinfo=timezone.utc),
-        primary_owners=[get_author(pr.created_by)],
+        primary_owners=[get_author(pr.created_by.display_name)],
         metadata={"state": pr.status, "type": "PullRequest"},
     )
     return doc
@@ -85,7 +85,7 @@ def _convert_workitem_to_document(work_item: WorkItem) -> Document:
         source=DocumentSource.AZUREDEVOPS,
         semantic_identifier=work_item.fields.get("System.Title", "Unnamed"),
         doc_updated_at=work_item.fields.get("System.ChangedDate", "").replace(tzinfo=timezone.utc),
-        primary_owners=[get_author(work_item.fields.get("System.CreatedBy"))],
+        primary_owners=[get_author(work_item.fields.get("System.CreatedBy")["displayName"])],
         metadata={"state": work_item.fields.get("System.State"), "type": work_item.fields.get("System.WorkItemType")},
     )
     return doc
