@@ -197,8 +197,11 @@ class AzureDevopsConnector(LoadConnector, PollConnector):
                 work_items_batch = work_item_client.get_work_items(batch_ids, expand="All")  # Fetch full details
                 work_items.extend(work_items_batch)
 
-            for work_item in work_items:
-                yield _convert_workitem_to_document(work_item, self.base_url)        
+            for workitem_batch in _batch_azuredevops_objects(work_items, self.batch_size):
+                workitem_doc_batch: list[Document] = []
+                for work_item in workitem_batch:
+                    workitem_doc_batch.append(_convert_workitem_to_document(work_item, self.base_url))
+                yield workitem_doc_batch   
 
 
     def load_from_state(self) -> GenerateDocumentsOutput:
