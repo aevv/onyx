@@ -257,6 +257,7 @@ export const connectorConfigs: Record<
         query: "Include work items?",
         label: "Include Work Items",
         name: "include_workitems",
+        default:true,
         optional: true,
         hidden: true,
       },
