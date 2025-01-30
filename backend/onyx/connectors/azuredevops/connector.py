@@ -58,7 +58,7 @@ def _convert_repo_to_document(repo: GitRepository) -> Document:
         sections=[Section(link=repo.url, text=repo.name)],
         source=DocumentSource.AZUREDEVOPS,
         semantic_identifier=repo.name,
-        doc_updated_at=repo.creation_date.replace(tzinfo=timezone.utc),
+        doc_updated_at=datetime.now().replace(tzinfo=timezone.utc),
         primary_owners=[],
         metadata={"type": "Repository"},
     )
