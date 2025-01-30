@@ -48,7 +48,7 @@ export const ConnectorTitle = ({
       `${typedConnector.connector_specific_config.project_owner}/${typedConnector.connector_specific_config.project_name}`
     );
   } else if (connector.source === "azuredevops") {
-    const typedConnector = connector as Connector<AzureDevOpsConfig>;
+    const typedConnector = connector as Connector<AzureDevopsConfig>;
     additionalMetadata.set(
       "Repo",
       `${typedConnector.connector_specific_config.project_name}/${typedConnector.connector_specific_config.repo_name}`
