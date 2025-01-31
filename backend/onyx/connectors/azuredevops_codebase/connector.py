@@ -115,7 +115,17 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
 
     def poll_source(self, start: SecondsSinceUnixEpoch, end: SecondsSinceUnixEpoch) -> GenerateDocumentsOutput:
         repo_path = f"{destination}/{self.repo_name}"
-        files_modified = self.get_modified_files(repo_path)
+
+        os.chdir(repo_path)
+
+        diff_result = subprocess.run(
+            ["git", "diff", "--name-only", "HEAD"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        files_modified = diff_result.stdout.strip().split("\n") if result.stdout else []
         
         if files_modified:
             file_list = self.get_repo_files_list(repo_path)
@@ -149,19 +159,6 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
                     )
             if code_doc_batch:
                 yield code_doc_batch   
-
-    def get_modified_files(repo_path):
-        try:
-            result = subprocess.run(
-                ["git", "diff", "--name-only", "HEAD"],
-                cwd=repo_path,
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            return result.stdout.strip().split("\n") if result.stdout else []
-        except subprocess.CalledProcessError:
-            return []
 
 
 if __name__ == "__main__":
