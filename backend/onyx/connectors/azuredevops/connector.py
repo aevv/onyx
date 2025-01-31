@@ -168,13 +168,14 @@ class AzureDevopsConnector(LoadConnector, PollConnector):
                 """
 
             subprocess.run(["git", "credential", "approve"], input=credential_data.encode(), check=True)
-            subprocess.run(["git", "clone", f"https://codat@dev.azure.com/codat/Codat/_git/{self.repo_name}", destination], check=True)
+            subprocess.run(["git", "clone", f"https://{self.pat}@dev.azure.com/codat/Codat/_git/{self.repo_name}", destination], check=True)
 
             file_list = []
             allowed_extensions = {".cs"} 
             allowed_filenames = {"README", "README.md", "README.txt"} 
 
             file_list = []
+            repo_path = f"{destination}/{self.repo_name}"
             for root, _, files in os.walk(repo_path):
                 for file in files:
                     if file in allowed_filenames or os.path.splitext(file)[1] in allowed_extensions:
@@ -190,7 +191,7 @@ class AzureDevopsConnector(LoadConnector, PollConnector):
                             _convert_code_to_document(
                                 repo.id,
                                 file_content,
-                                item.removeprefix(destination),
+                                item.removeprefix(repo_path),
                                 self.project_name,
                             )
                         )
