@@ -36,7 +36,7 @@ RUN apt-get update && \
         libxmlsec1-dev \
         pkg-config \
         gcc \
-        git  \
+        git && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get clean
 
@@ -72,7 +72,6 @@ RUN apt-get update && \
         pkg-config \
         gcc && \
     apt-get install -y libxmlsec1-openssl && \
-    apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/* && \
     rm -f /usr/local/lib/python3.11/site-packages/tornado/test/test.key
 
