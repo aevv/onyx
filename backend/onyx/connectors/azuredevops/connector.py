@@ -149,7 +149,8 @@ class AzureDevopsConnector(LoadConnector, PollConnector):
     def load_credentials(self, credentials: dict[str, Any]) -> dict[str, Any] | None:
         azdo_credentials = BasicAuthentication("", credentials["azuredevops_access_token"])
         self.base_url = credentials["azuredevops_url"]
-        self.azdo_client = Connection(base_url=credentials["azuredevops_url"], creds=azdo_credentials)        
+        self.azdo_client = Connection(base_url=credentials["azuredevops_url"], creds=azdo_credentials)
+        self.pat = credentials["azuredevops_access_token"]       
         return None
 
     def _fetch_from_azuredevops(self) -> GenerateDocumentsOutput:
@@ -163,6 +164,7 @@ class AzureDevopsConnector(LoadConnector, PollConnector):
 
             destination = "/mnt/datadisk/source"
             os.makedirs(destination, exist_ok=True)
+            subprocess.run(["git", "config", "--global", "credential.https://github.com.codat", self.pat], check=True)
             subprocess.run(["git", "clone", repo.url, destination], check=True)
 
             # batch the repo
