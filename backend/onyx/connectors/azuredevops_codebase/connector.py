@@ -107,8 +107,8 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
         subprocess.run(["git", "clone", clone_url, repo_path], check=True)
 
         file_list = self.get_repo_files_list(repo_path)
-        for batch in processor.process_files(file_list, repo, repo_url, repo_path):
-            yield batch
+        self.process_files(file_list, repo, repo_url, repo_path)
+
 
     def load_from_state(self) -> GenerateDocumentsOutput:
         return self._fetch_from_azuredevops()
@@ -119,8 +119,7 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
         
         if files_modified:
             file_list = self.get_repo_files_list(repo_path)
-            for batch in processor.process_files(file_list, repo, repo_url, repo_path):
-                yield batch
+            self.process_files(file_list, repo, repo_url, repo_path)
 
     def get_repo_files_list(self, repo_path: str) -> list[str]: 
         allowed_extensions = {".cs"} 
