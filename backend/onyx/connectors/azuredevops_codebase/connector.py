@@ -101,45 +101,68 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
             """
 
         repo_path = f"{destination}/{self.repo_name}"
-        clone_url = f"https://{self.pat}@dev.azure.com/codat/Codat/_git/{self.repo_name}"
         repo_url = f"https://dev.azure.com/codat/Codat/_git/{self.repo_name}"
 
-        subprocess.run(["git", "credential", "approve"], input=credential_data.encode(), check=True)
-        subprocess.run(["git", "clone", clone_url, repo_path], check=True)
+        scan_required = False
 
-        file_list = []
-        allowed_extensions = {".cs"} 
-        allowed_filenames = {"README", "README.md", "README.txt"} 
+        if not os.path.exists(repo_path):
+            clone_url = f"https://{self.pat}@dev.azure.com/codat/Codat/_git/{self.repo_name}"
+            subprocess.run(["git", "credential", "approve"], input=credential_data.encode(), check=True)
+            subprocess.run(["git", "clone", clone_url, repo_path], check=True)
+            scan_required = True
+        else:
+            files_modified = self.get_modified_files(repo_path)
+            if files_modified:
+                scan_required = True
 
-        file_list = []
-        for root, _, files in os.walk(repo_path):
-            for file in files:
-                if file in allowed_filenames or os.path.splitext(file)[1] in allowed_extensions:
-                    file_list.append(os.path.join(root, file))  
+        if scan_required:
+            file_list = []
+            allowed_extensions = {".cs"} 
+            allowed_filenames = {"README", "README.md", "README.txt"} 
 
-        for item_batch in _batch_azuredevops_objects(file_list, self.batch_size):
-            code_doc_batch: list[Document] = []
-            for item in item_batch:   
-                with open(item, "r", encoding="utf-8", errors="ignore") as f:
-                    file_content = f.read()
+            file_list = []
+            for root, _, files in os.walk(repo_path):
+                for file in files:
+                    if file in allowed_filenames or os.path.splitext(file)[1] in allowed_extensions:
+                        file_list.append(os.path.join(root, file))  
 
-                    code_doc_batch.append(
-                        _convert_code_to_document(
-                            repo.id,
-                            repo_url,
-                            file_content,                            
-                            item.removeprefix(repo_path)
+            for item_batch in _batch_azuredevops_objects(file_list, self.batch_size):
+                code_doc_batch: list[Document] = []
+                for item in item_batch:   
+                    with open(item, "r", encoding="utf-8", errors="ignore") as f:
+                        file_content = f.read()
+
+                        code_doc_batch.append(
+                            _convert_code_to_document(
+                                repo.id,
+                                repo_url,
+                                file_content,                            
+                                item.removeprefix(repo_path)
+                            )
                         )
-                    )
-            if code_doc_batch:
-                yield code_doc_batch
+                if code_doc_batch:
+                    yield code_doc_batch
 
 
     def load_from_state(self) -> GenerateDocumentsOutput:
         return self._fetch_from_azuredevops()
 
     def poll_source(self, start: SecondsSinceUnixEpoch, end: SecondsSinceUnixEpoch) -> GenerateDocumentsOutput:
+        # No need to implement much here - the below method checks for a diff
         return self._fetch_from_azuredevops()
+
+    def get_modified_files(repo_path):
+        try:
+            result = subprocess.run(
+                ["git", "diff", "--name-only", "HEAD"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            return result.stdout.strip().split("\n") if result.stdout else []
+        except subprocess.CalledProcessError:
+            return []
 
 
 if __name__ == "__main__":
