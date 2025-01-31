@@ -106,15 +106,32 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
         subprocess.run(["git", "credential", "approve"], input=credential_data.encode(), check=True)
         subprocess.run(["git", "clone", clone_url, repo_path], check=True)
 
-        file_list = self.get_repo_files_list(repo_path, allowed_extensions, allowed_filenames)
+        file_list = self.get_repo_files_list(repo_path)
+        for batch in processor.process_files(file_list, repo, repo_url, repo_path)
 
-        for batch in processor.process_files(self, file_list, repo, repo_url, repo_path)
+    def load_from_state(self) -> GenerateDocumentsOutput:
+        return self._fetch_from_azuredevops()
 
-    def process_files(self, file_list, repo, repo_url, repo_path):
-        # todo: implement this
+    def poll_source(self, start: SecondsSinceUnixEpoch, end: SecondsSinceUnixEpoch) -> GenerateDocumentsOutput:
+        repo_path = f"{destination}/{self.repo_name}"
+        files_modified = self.get_modified_files(repo_path)
+        
+        if files_modified:
+            file_list = self.get_repo_files_list(repo_path)
+            for batch in processor.process_files(file_list, repo, repo_url, repo_path)
+
+    def get_repo_files_list(self, repo_path: str) -> list[str]: 
         allowed_extensions = {".cs"} 
         allowed_filenames = {"README", "README.md", "README.txt"} 
+        
+        file_list = []
+        for root, _, files in os.walk(repo_path):
+            for file in files:
+                if file in allowed_filenames or os.path.splitext(file)[1] in allowed_extensions:
+                    file_list.append(os.path.join(root, file))  
+        return file_list
 
+    def process_files(self, file_list, repo, repo_url, repo_path):
         for item_batch in self._batch_azuredevops_objects(file_list):
             code_doc_batch = []
             for item in item_batch:
@@ -130,19 +147,7 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
                         )
                     )
             if code_doc_batch:
-                yield code_doc_batch
-
-    def load_from_state(self) -> GenerateDocumentsOutput:
-        return self._fetch_from_azuredevops()
-
-    def poll_source(self, start: SecondsSinceUnixEpoch, end: SecondsSinceUnixEpoch) -> GenerateDocumentsOutput:
-        repo_path = f"{destination}/{self.repo_name}"
-        files_modified = self.get_modified_files(repo_path)
-        
-        if files_modified:
-            file_list = self.get_repo_files_list(repo_path, allowed_extensions, allowed_filenames)
-            for batch in processor.process_files(self, file_list, repo, repo_url, repo_path)
-            
+                yield code_doc_batch   
 
     def get_modified_files(repo_path):
         try:
