@@ -35,7 +35,8 @@ RUN apt-get update && \
         libuuid1=2.38.1-5+deb12u1 \
         libxmlsec1-dev \
         pkg-config \
-        gcc && \
+        gcc \
+        git && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get clean
 
