@@ -168,7 +168,7 @@ class AzureDevopsConnector(LoadConnector, PollConnector):
                 """
 
             subprocess.run(["git", "credential", "approve"], input=credential_data.encode(), check=True)
-            subprocess.run(["git", "clone", f"{self.base_url}/{self.project_name}/_git/{self.repo_name}", destination], check=True)
+            subprocess.run(["git", "clone", f"https://codat@dev.azure.com/codat/Codat/_git/{self.repo_name}", destination], check=True)
 
             file_list = []
             allowed_extensions = {".cs"} 
