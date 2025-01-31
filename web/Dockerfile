@@ -27,6 +27,10 @@ COPY . .
 # Install dependencies
 RUN npm ci
 
+RUN apt-get update && \
+    apt-get install -y \
+    git
+
 # needed to get the `standalone` dir we expect later
 ENV NEXT_PRIVATE_STANDALONE=true
 
