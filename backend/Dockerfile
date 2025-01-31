@@ -36,7 +36,7 @@ RUN apt-get update && \
         libxmlsec1-dev \
         pkg-config \
         gcc \
-        git-all && \
+        git && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get clean
 

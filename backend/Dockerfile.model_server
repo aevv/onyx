@@ -24,7 +24,7 @@ RUN apt-get remove -y --allow-remove-essential perl-base && \
     apt-get autoremove -y  && \ 
     apt-get update && \
     apt-get install -y \
-    git-all
+    git
 
 RUN python -c "from transformers import AutoTokenizer; \
 AutoTokenizer.from_pretrained('distilbert-base-uncased'); \
