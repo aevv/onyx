@@ -89,14 +89,12 @@ def format_date(date: str) -> datetime:
 def _convert_workitem_to_document(work_item: WorkItem, base_url) -> Document:
     work_item_url = f"{base_url}/_workItems/edit/{work_item.id}"
     changed_date = format_date(work_item.fields.get("System.ChangedDate"))
-    # convert string to datetime
-    date = datetime.strptime(changed_date, "%Y-%m-%dT%H:%M:%S.%fZ")
     doc = Document(
         id=work_item_url,
         sections=[Section(link=work_item_url, text=work_item.fields.get("System.Description") or "")],
         source=DocumentSource.AZUREDEVOPS,
         semantic_identifier=work_item.fields.get("System.Title", "Unnamed"),
-        doc_updated_at=date.replace(tzinfo=timezone.utc),
+        doc_updated_at=changed_date.replace(tzinfo=timezone.utc),
         primary_owners=[get_author(work_item.fields.get("System.CreatedBy")["displayName"])],
         metadata={"state": work_item.fields.get("System.State"), "type": work_item.fields.get("System.WorkItemType")},
     )
