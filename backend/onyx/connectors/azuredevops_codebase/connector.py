@@ -116,7 +116,7 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
     def poll_source(self, start: SecondsSinceUnixEpoch, end: SecondsSinceUnixEpoch) -> GenerateDocumentsOutput:
         repo_path = f"{destination}/{self.repo_name}"
 
-        os.chdir(repo_path)
+        #os.chdir(repo_path)
 
         diff_result = subprocess.run(
             ["git", "diff", "--name-only", "HEAD"],
