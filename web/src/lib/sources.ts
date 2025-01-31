@@ -115,13 +115,13 @@ export const SOURCE_METADATA_MAP: SourceMap = {
     category: SourceCategory.CodeRepository,
     docs: "https://docs.onyx.app/connectors/gitlab",
   },
-  azuredevops_mangement: {
+  azuredevopsmangement: {
     icon: AzureDevopsIcon,
     displayName: "AzureDevops Management",
     category: SourceCategory.ProjectManagement,
     docs: "https://docs.onyx.app/connectors/azuredevops",
   },
-  azuredevops_codebase: {
+  azuredevopscodebase: {
     icon: AzureDevopsIcon,
     displayName: "AzureDevops Codebase",
     category: SourceCategory.CodeRepository,
