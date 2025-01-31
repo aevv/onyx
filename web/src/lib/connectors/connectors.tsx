@@ -238,10 +238,10 @@ export const connectorConfigs: Record<
     values: [
       {
         type: "text",
-        query: "Enter repository names:",
+        query: "Enter repository name:",
         label: "Repo Name",
         name: "repo_name",
-        optional: true,
+        optional: false,
       },
     ],
     advanced_values: [],
@@ -1258,11 +1258,11 @@ export interface GitlabConfig {
   include_issues: boolean;
 }
 
-export interface AzureDevopsConfig {
+export interface AzureDevopsManagementConfig {
+}
+
+export interface AzureDevopsCodebaseConfig {
   repo_name: string;
-  project_name: string;
-  include_prs: boolean;
-  include_workitems: boolean;
 }
 
 export interface GoogleDriveConfig {

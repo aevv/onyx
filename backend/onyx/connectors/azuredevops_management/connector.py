@@ -15,14 +15,9 @@ from msrest.authentication import BasicAuthentication
 
 from azure.devops.v7_1.work_item_tracking.models import WorkItem
 from azure.devops.v7_1.work_item_tracking.models import Wiql
-from azure.devops.v7_1.git.models import GitPullRequest
-from azure.devops.v7_1.git.models import GitRepository
-from azure.devops.v7_1.git.models import GitItem
-from azure.devops.v7_1.git.models import GitPullRequestSearchCriteria
 
 import pytz
 
-from onyx.configs.app_configs import AZUREDEVOPS_CONNECTOR_INCLUDE_CODE_FILES
 from onyx.configs.app_configs import INDEX_BATCH_SIZE
 from onyx.configs.constants import DocumentSource
 from onyx.connectors.interfaces import GenerateDocumentsOutput
@@ -55,30 +50,6 @@ def get_author(author: Any) -> BasicExpertInfo:
         display_name=author,
     )
 
-def _convert_repo_to_document(repo: GitRepository) -> Document:
-    doc = Document(
-        id=repo.id,
-        sections=[Section(link=repo.url, text=repo.name)],
-        source=DocumentSource.AZUREDEVOPS,
-        semantic_identifier=repo.name,
-        doc_updated_at=datetime.now().replace(tzinfo=timezone.utc),
-        primary_owners=[],
-        metadata={"type": "Repository"},
-    )
-    return doc
-
-def _convert_pull_request_to_document(pr: GitPullRequest) -> Document:
-    doc = Document(
-        id=pr.url,
-        sections=[Section(link=pr.url, text=pr.description or "")],
-        source=DocumentSource.AZUREDEVOPS,
-        semantic_identifier=pr.title,
-        doc_updated_at=pr.creation_date.replace(tzinfo=timezone.utc),
-        primary_owners=[get_author(pr.created_by.display_name)],
-        metadata={"state": pr.status, "type": "PullRequest"},
-    )
-    return doc
-
 def format_date(date: str) -> datetime:
     formats = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S.%fZ"]  # Handles both cases
     for fmt in formats:
@@ -94,7 +65,7 @@ def _convert_workitem_to_document(work_item: WorkItem, base_url) -> Document:
     doc = Document(
         id=work_item_url,
         sections=[Section(link=work_item_url, text=work_item.fields.get("System.Description") or "")],
-        source=DocumentSource.AZUREDEVOPS,
+        source=DocumentSource.AZUREDEVOPSMANAGEMENT,
         semantic_identifier=work_item.fields.get("System.Title", "Unnamed"),
         doc_updated_at=changed_date.replace(tzinfo=timezone.utc),
         primary_owners=[get_author(work_item.fields.get("System.CreatedBy")["displayName"])],
@@ -105,20 +76,11 @@ def _convert_workitem_to_document(work_item: WorkItem, base_url) -> Document:
 class AzureDevopsConnector(LoadConnector, PollConnector):
     def __init__(
         self,
-        project_name: str,
-        repo_name: str,
         batch_size: int = INDEX_BATCH_SIZE,
         state_filter: str = "all",
-        include_prs: bool = True,
-        include_workitems: bool = True,
-        include_code_files: bool = AZUREDEVOPS_CONNECTOR_INCLUDE_CODE_FILES,
     ) -> None:
-        self.project_name = project_name
-        self.repo_name = repo_name
         self.batch_size = batch_size
         self.state_filter = state_filter
-        self.include_prs = include_prs
-        self.include_workitems = include_workitems
         self.azdo_client: Connection | None = None
 
     def load_credentials(self, credentials: dict[str, Any]) -> dict[str, Any] | None:
@@ -132,43 +94,33 @@ class AzureDevopsConnector(LoadConnector, PollConnector):
         if self.azdo_client is None:
             raise ConnectorMissingCredentialError("AzureDevops")
         
-        if self.include_prs:
-            # Get PRs
-            git_client = self.azdo_client.clients.get_git_client()
-            repo = git_client.get_repository(project=self.project_name, repository_id=self.repo_name)
-            search_criteria = GitPullRequestSearchCriteria(repository_id=repo.id, status="all")
-            prs = git_client.get_pull_requests_by_project(project=self.project_name, search_criteria=search_criteria)
-            for pr_batch in _batch_azuredevops_objects(prs, self.batch_size):
-                pr_doc_batch: list[Document] = []
-                for pr in pr_batch:
-                    pr_doc_batch.append(_convert_pull_request_to_document(pr))
-                yield pr_doc_batch
 
-        if self.include_workitems:
-            # Get workitems
-            work_item_client = self.azdo_client.clients.get_work_item_tracking_client()
-            query = f"SELECT [System.Id], [System.Title] FROM WorkItems WHERE [System.TeamProject] = '{self.project_name}' AND [System.ChangedDate] > @today - 180 ORDER BY [System.CreatedDate] Desc"
-            work_items = work_item_client.query_by_wiql(Wiql(query=query))
-            work_item_ids = [item.id for item in work_items.work_items]
-            
-            batch_size = 200
-            work_items = []
+        # Get workitems
+        work_item_client = self.azdo_client.clients.get_work_item_tracking_client()
+        query = f"SELECT [System.Id], [System.Title] FROM WorkItems WHERE [System.TeamProject] = 'Codat' AND [System.ChangedDate] > @today - 180 ORDER BY [System.CreatedDate] Desc"
+        work_items = work_item_client.query_by_wiql(Wiql(query=query))
+        work_item_ids = [item.id for item in work_items.work_items]
+        
+        # TODO: Batch better
+        batch_size = 200
+        work_items = []
 
-            for i in range(0, len(work_item_ids), batch_size):
-                batch_ids = work_item_ids[i : i + batch_size]  # Get batch of IDs
-                work_items_batch = work_item_client.get_work_items(batch_ids, expand="All")  # Fetch full details
-                work_items.extend(work_items_batch)
+        for i in range(0, len(work_item_ids), batch_size):
+            batch_ids = work_item_ids[i : i + batch_size]  # Get batch of IDs
+            work_items_batch = work_item_client.get_work_items(batch_ids, expand="All")  # Fetch full details
+            work_items.extend(work_items_batch)
 
-            for workitem_batch in _batch_azuredevops_objects(work_items, self.batch_size):
-                workitem_doc_batch: list[Document] = []
-                for work_item in workitem_batch:
-                    workitem_doc_batch.append(_convert_workitem_to_document(work_item, self.base_url))
-                yield workitem_doc_batch   
+        for workitem_batch in _batch_azuredevops_objects(work_items, self.batch_size):
+            workitem_doc_batch: list[Document] = []
+            for work_item in workitem_batch:
+                workitem_doc_batch.append(_convert_workitem_to_document(work_item, self.base_url))
+            yield workitem_doc_batch   
 
 
     def load_from_state(self) -> GenerateDocumentsOutput:
         return self._fetch_from_azuredevops()
 
+    # TODO: Ongoing indexing
     def poll_source(self, start: SecondsSinceUnixEpoch, end: SecondsSinceUnixEpoch) -> GenerateDocumentsOutput:
         return self._fetch_from_azuredevops()
 
@@ -176,13 +128,9 @@ class AzureDevopsConnector(LoadConnector, PollConnector):
 if __name__ == "__main__":
     import os
 
-    connector = AzureDevopsConnector(        
-        project_name=os.environ["PROJECT_NAME"],
+    connector = AzureDevopsConnector(
         batch_size=10,
-        state_filter="all",
-        include_prs=True,
-        include_workitems=True,
-        include_code_files=AZUREDEVOPS_CONNECTOR_INCLUDE_CODE_FILES,
+        state_filter="all"
     )
 
     connector.load_credentials(

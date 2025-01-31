@@ -12,9 +12,6 @@ import os
 
 from azure.devops.connection import Connection
 from msrest.authentication import BasicAuthentication
-
-from azure.devops.v7_1.work_item_tracking.models import WorkItem
-from azure.devops.v7_1.work_item_tracking.models import Wiql
 from azure.devops.v7_1.git.models import GitPullRequest
 from azure.devops.v7_1.git.models import GitRepository
 from azure.devops.v7_1.git.models import GitItem
@@ -49,24 +46,16 @@ def _batch_azuredevops_objects(
             break
         yield batch
 
-def format_date(date: str) -> datetime:
-    formats = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S.%fZ"]  # Handles both cases
-    for fmt in formats:
-        try:
-            return datetime.strptime(date, fmt)
-        except ValueError:
-            continue
-    raise ValueError(f"Time data {date} does not match known formats")
-
 def _convert_code_to_document(
-    repo_id: str, content_string: str, repo_url: str, project_name: str
+    repo_id: str, repo_url: str, content_string: str, file_path: str
 ) -> Document:
-    
+    # https://dev.azure.com/codat/Codat/_git/Identity?path=/ReadMe.md
+    file_url = f"{repo_url}?path={file_path}"
     doc = Document(
         id=f"{repo_id}:{repo_url}",
-        sections=[Section(link=repo_url, text=content_string)],
-        source=DocumentSource.AZURE_DEVOPS,
-        semantic_identifier=file.path.split("/")[-1],  # Extract filename
+        sections=[Section(link=file_url, text=content_string)],
+        source=DocumentSource.AZUREDEVOPSCODEBASE,
+        semantic_identifier=file_path,
         doc_updated_at=datetime.now().replace(tzinfo=timezone.utc),  # Use current time
         primary_owners=[],
         metadata={"type": "CodeFile"},
@@ -77,19 +66,11 @@ def _convert_code_to_document(
 class AzureDevopsConnector(LoadConnector, PollConnector):
     def __init__(
         self,
-        project_name: str,
         repo_name: str,
         batch_size: int = INDEX_BATCH_SIZE,
-        state_filter: str = "all",
-        include_prs: bool = True,
-        include_workitems: bool = True,
-        include_code_files: bool = AZUREDEVOPS_CONNECTOR_INCLUDE_CODE_FILES,
     ) -> None:
-        self.project_name = project_name
         self.repo_name = repo_name
         self.batch_size = batch_size
-        self.state_filter = state_filter
-        self.include_code_files = include_code_files
         self.azdo_client: Connection | None = None
 
     def load_credentials(self, credentials: dict[str, Any]) -> dict[str, Any] | None:
@@ -103,53 +84,56 @@ class AzureDevopsConnector(LoadConnector, PollConnector):
         if self.azdo_client is None:
             raise ConnectorMissingCredentialError("AzureDevops")
         
-        if self.repo_name is not None:
-            # Get code
-            git_client = self.azdo_client.clients.get_git_client()
-            repo = git_client.get_repository(project=self.project_name, repository_id=self.repo_name)
+        # Get code
+        git_client = self.azdo_client.clients.get_git_client()
+        repo = git_client.get_repository(project=self.project_name, repository_id=self.repo_name)
 
-            destination = "/mnt/datadisk/source"
-            os.makedirs(destination, exist_ok=True)
+        destination = "/mnt/datadisk/source"
+        os.makedirs(destination, exist_ok=True)
 
-            subprocess.run(["git", "config", "--global", "credential.helper", "store"], check=True)
+        # TODO can we remove credentials?
+        subprocess.run(["git", "config", "--global", "credential.helper", "store"], check=True)
 
-            credential_data = f"""
-                protocol=https
-                host=dev.azure.com
-                username=platform@codat.io
-                password={self.pat}
-                """
+        credential_data = f"""
+            protocol=https
+            host=dev.azure.com
+            username=platform@codat.io
+            password={self.pat}
+            """
 
-            subprocess.run(["git", "credential", "approve"], input=credential_data.encode(), check=True)
-            subprocess.run(["git", "clone", f"https://{self.pat}@dev.azure.com/codat/Codat/_git/{self.repo_name}", destination], check=True)
+        clone_url = f"https://{self.pat}@dev.azure.com/codat/Codat/_git/{self.repo_name}"
+        repo_url = f"https://dev.azure.com/codat/Codat/_git/{self.repo_name}"
 
-            file_list = []
-            allowed_extensions = {".cs"} 
-            allowed_filenames = {"README", "README.md", "README.txt"} 
+        subprocess.run(["git", "credential", "approve"], input=credential_data.encode(), check=True)
+        subprocess.run(["git", "clone", clone_url, destination], check=True)
 
-            file_list = []
-            repo_path = f"{destination}/{self.repo_name}"
-            for root, _, files in os.walk(repo_path):
-                for file in files:
-                    if file in allowed_filenames or os.path.splitext(file)[1] in allowed_extensions:
-                        file_list.append(os.path.join(root, file))  
+        file_list = []
+        allowed_extensions = {".cs"} 
+        allowed_filenames = {"README", "README.md", "README.txt"} 
 
-            for item_batch in _batch_azuredevops_objects(file_list, self.batch_size):
-                code_doc_batch: list[Document] = []
-                for item in item_batch:   
-                    with open(item, "r", encoding="utf-8", errors="ignore") as f:
-                        file_content = f.read()
+        file_list = []
+        repo_path = f"{destination}/{self.repo_name}"
+        for root, _, files in os.walk(repo_path):
+            for file in files:
+                if file in allowed_filenames or os.path.splitext(file)[1] in allowed_extensions:
+                    file_list.append(os.path.join(root, file))  
 
-                        code_doc_batch.append(
-                            _convert_code_to_document(
-                                repo.id,
-                                file_content,
-                                item.removeprefix(repo_path),
-                                self.project_name,
-                            )
+        for item_batch in _batch_azuredevops_objects(file_list, self.batch_size):
+            code_doc_batch: list[Document] = []
+            for item in item_batch:   
+                with open(item, "r", encoding="utf-8", errors="ignore") as f:
+                    file_content = f.read()
+
+                    code_doc_batch.append(
+                        _convert_code_to_document(
+                            repo.id,
+                            repo_url,
+                            file_content,                            
+                            item.removeprefix(repo_path)
                         )
-                if code_doc_batch:
-                    yield code_doc_batch
+                    )
+            if code_doc_batch:
+                yield code_doc_batch
 
 
     def load_from_state(self) -> GenerateDocumentsOutput:
@@ -165,10 +149,6 @@ if __name__ == "__main__":
     connector = AzureDevopsConnector(        
         project_name=os.environ["PROJECT_NAME"],
         batch_size=10,
-        state_filter="all",
-        include_prs=True,
-        include_workitems=True,
-        include_code_files=AZUREDEVOPS_CONNECTOR_INCLUDE_CODE_FILES,
     )
 
     connector.load_credentials(
