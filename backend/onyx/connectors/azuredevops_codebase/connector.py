@@ -63,7 +63,7 @@ def _convert_code_to_document(
     return doc
 
 
-class AzureDevopsConnector(LoadConnector, PollConnector):
+class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
     def __init__(
         self,
         repo_name: str,
@@ -146,7 +146,7 @@ class AzureDevopsConnector(LoadConnector, PollConnector):
 if __name__ == "__main__":
     import os
 
-    connector = AzureDevopsConnector(        
+    connector = AzureDevopsCodebaseConnector(        
         project_name=os.environ["PROJECT_NAME"],
         batch_size=10,
     )

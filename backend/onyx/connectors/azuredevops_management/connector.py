@@ -73,7 +73,7 @@ def _convert_workitem_to_document(work_item: WorkItem, base_url) -> Document:
     )
     return doc
 
-class AzureDevopsConnector(LoadConnector, PollConnector):
+class AzureDevopsManagementConnector(LoadConnector, PollConnector):
     def __init__(
         self,
         batch_size: int = INDEX_BATCH_SIZE,
@@ -128,7 +128,7 @@ class AzureDevopsConnector(LoadConnector, PollConnector):
 if __name__ == "__main__":
     import os
 
-    connector = AzureDevopsConnector(
+    connector = AzureDevopsManagementConnector(
         batch_size=10,
         state_filter="all"
     )
