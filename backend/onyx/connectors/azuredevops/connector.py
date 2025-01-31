@@ -104,12 +104,12 @@ def _convert_workitem_to_document(work_item: WorkItem, base_url) -> Document:
 
 
 def _convert_code_to_document(
-    repo_id: str, file: content_string, repo_url: str, project_name: str
+    repo_id: str, content_string: str, repo_url: str, project_name: str
 ) -> Document:
     
     doc = Document(
-        id=f"{repo_id}:{file.path}",
-        sections=[Section(link=repo_url, text=file_content)],
+        id=f"{repo_id}:{repo_url}",
+        sections=[Section(link=repo_url, text=content_string)],
         source=DocumentSource.AZURE_DEVOPS,
         semantic_identifier=file.path.split("/")[-1],  # Extract filename
         doc_updated_at=datetime.now().replace(tzinfo=timezone.utc),  # Use current time
@@ -170,12 +170,9 @@ class AzureDevopsConnector(LoadConnector, PollConnector):
                     if file in allowed_filenames or os.path.splitext(file)[1] in allowed_extensions:
                         file_list.append(os.path.join(root, file))  
 
-            # Need to change to a git clone and parse from file system
-            # items = git_client.get_items(repository_id=repo.id, scope_path="/", recursion_level="full")
             for item_batch in _batch_azuredevops_objects(file_list, self.batch_size):
                 code_doc_batch: list[Document] = []
                 for item in item_batch:   
-                    # read file contect from a path on disk
                     with open(item, "r", encoding="utf-8", errors="ignore") as f:
                         file_content = f.read()
 
