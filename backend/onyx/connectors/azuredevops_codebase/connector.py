@@ -108,7 +108,7 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
 
         file_list = self.get_repo_files_list(repo_path, allowed_extensions, allowed_filenames)
 
-        for batch in processor.process_files(file_list, repo, repo_url, repo_path)
+        for batch in processor.process_files(self, file_list, repo, repo_url, repo_path)
 
     def process_files(self, file_list, repo, repo_url, repo_path):
         # todo: implement this
@@ -141,7 +141,7 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
         
         if files_modified:
             file_list = self.get_repo_files_list(repo_path, allowed_extensions, allowed_filenames)
-            for batch in processor.process_files(file_list, repo, repo_url, repo_path)
+            for batch in processor.process_files(self, file_list, repo, repo_url, repo_path)
             
 
     def get_modified_files(repo_path):
