@@ -22,7 +22,7 @@ from azure.devops.v7_1.git.models import GitPullRequestSearchCriteria
 import time
 
 # config
-PAT = "DoUf4ZYWDStuJewKWspgU2L0y00KZJgGrFhecNk8iKkI8grNzJeDJQQJ99BAACAAAAADt3UrAAASAZDOgK28"
+PAT = ""
 base_url = "https://dev.azure.com/codat"
 project = "codat"
 

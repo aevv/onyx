@@ -7,6 +7,8 @@ from datetime import datetime
 from datetime import timezone
 from typing import Any
 import time
+import subprocess 
+import os
 
 from azure.devops.connection import Connection
 from msrest.authentication import BasicAuthentication
@@ -154,11 +156,15 @@ class AzureDevopsConnector(LoadConnector, PollConnector):
         if self.azdo_client is None:
             raise ConnectorMissingCredentialError("AzureDevops")
         
-        
-        if True:
+        if self.repo_name is not None:
             # Get code
             git_client = self.azdo_client.clients.get_git_client()
             repo = git_client.get_repository(project=self.project_name, repository_id=self.repo_name)
+
+            destination = "/mnt/datadisk/source"
+            os.makedirs(destination, exist_ok=True)
+            subprocess.run(["git", "clone", repo.url, destination], check=True)
+
             # batch the repo
             repo_doc_batch: list[Document] = []
             for repo_batch in _batch_azuredevops_objects([repo], self.batch_size):
