@@ -19,7 +19,6 @@ from azure.devops.v7_1.git.models import GitPullRequestSearchCriteria
 
 import pytz
 
-from onyx.configs.app_configs import AZUREDEVOPS_CONNECTOR_INCLUDE_CODE_FILES
 from onyx.configs.app_configs import INDEX_BATCH_SIZE
 from onyx.configs.constants import DocumentSource
 from onyx.connectors.interfaces import GenerateDocumentsOutput
@@ -86,7 +85,7 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
         
         # Get code
         git_client = self.azdo_client.clients.get_git_client()
-        repo = git_client.get_repository(project=self.project_name, repository_id=self.repo_name)
+        repo = git_client.get_repository(project="Codat", repository_id=self.repo_name)
 
         destination = "/mnt/datadisk/source"
         os.makedirs(destination, exist_ok=True)
@@ -147,7 +146,7 @@ if __name__ == "__main__":
     import os
 
     connector = AzureDevopsCodebaseConnector(        
-        project_name=os.environ["PROJECT_NAME"],
+        repo_name=os.environ["REPO_NAME"],
         batch_size=10,
     )
 
