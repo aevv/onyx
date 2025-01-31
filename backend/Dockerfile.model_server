@@ -24,12 +24,8 @@ RUN apt-get remove -y --allow-remove-essential perl-base && \
     apt-get autoremove -y  && \ 
     apt-get update && \
     apt-get install -y \
-    git && \
+    git
 
-# Pre-downloading models for setups with limited egress
-# Download tokenizers, distilbert for the Onyx model
-# Download model weights
-# Run Nomic to pull in the custom architecture and have it cached locally
 RUN python -c "from transformers import AutoTokenizer; \
 AutoTokenizer.from_pretrained('distilbert-base-uncased'); \
 AutoTokenizer.from_pretrained('mixedbread-ai/mxbai-rerank-xsmall-v1'); \
