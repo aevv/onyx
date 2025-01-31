@@ -51,7 +51,7 @@ def _convert_code_to_document(
     # https://dev.azure.com/codat/Codat/_git/Identity?path=/ReadMe.md
     file_url = f"{repo_url}?path={file_path}"
     doc = Document(
-        id=f"{repo_id}:{repo_url}",
+        id=f"{repo_id}:{repo_url}:{file_path}",
         sections=[Section(link=file_url, text=content_string)],
         source=DocumentSource.AZUREDEVOPSCODEBASE,
         semantic_identifier=file_path,
