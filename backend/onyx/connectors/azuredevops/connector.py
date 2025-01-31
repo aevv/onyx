@@ -157,8 +157,18 @@ class AzureDevopsConnector(LoadConnector, PollConnector):
 
             destination = "/mnt/datadisk/source"
             os.makedirs(destination, exist_ok=True)
-            subprocess.run(["git", "config", "--global", f"credential.{self.base_url}", self.pat], check=True)
-            subprocess.run(["git", "clone", f"{self.base_url}/_git/{self.project_name}", destination], check=True)
+
+            subprocess.run(["git", "config", "--global", "credential.helper", "store"], check=True)
+
+            credential_data = f"""
+                protocol=https
+                host=dev.azure.com
+                username=platform@codat.io
+                password={self.pat}
+                """
+
+            subprocess.run(["git", "credential", "approve"], input=credential_data.encode(), check=True)
+            subprocess.run(["git", "clone", f"{self.base_url}/{self.project_name}/_git/{self.repo_name}", destination], check=True)
 
             file_list = []
             allowed_extensions = {".cs"} 
