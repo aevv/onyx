@@ -227,39 +227,21 @@ export const connectorConfigs: Record<
     ],
     advanced_values: [],
   },
-  azuredevops: {
-    description: "Configure Azure Devops connector",
+  azuredevops_management: {
+    description: "Configure Azure Devops Management connector",
+    values: [
+    ],
+    advanced_values: [],
+  },
+  azuredevops_codebase: {
+    description: "Configure Azure Devops codebase connector",
     values: [
       {
         type: "text",
-        query: "Enter the project name:",
-        label: "Project Name",
-        name: "project_name",
-        optional: false,
-      },
-      {
-        type: "text",
-        query: "Enter the repo name:",
+        query: "Enter repository names:",
         label: "Repo Name",
         name: "repo_name",
         optional: true,
-      },
-      {
-        type: "checkbox",
-        query: "Include pill requests?",
-        label: "Include PRs",
-        name: "include_prs",
-        default: true,
-        hidden: true,
-      },
-      {
-        type: "checkbox",
-        query: "Include work items?",
-        label: "Include Work Items",
-        name: "include_workitems",
-        default:true,
-        optional: true,
-        hidden: true,
       },
     ],
     advanced_values: [],

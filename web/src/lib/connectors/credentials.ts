@@ -232,7 +232,11 @@ export const credentialTemplates: Record<ValidSources, any> = {
     gitlab_url: "",
     gitlab_access_token: "",
   } as GitlabCredentialJson,
-  azuredevops: {
+  azuredevops_management: {
+    azuredevops_access_token: "",
+    azuredevops_url: "",
+  } as AzureDevopsCredentialJson,
+  azuredevops_codebase: {
     azuredevops_access_token: "",
     azuredevops_url: "",
   } as AzureDevopsCredentialJson,

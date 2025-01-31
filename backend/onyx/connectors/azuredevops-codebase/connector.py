@@ -49,36 +49,6 @@ def _batch_azuredevops_objects(
             break
         yield batch
 
-
-def get_author(author: Any) -> BasicExpertInfo:
-    return BasicExpertInfo(
-        display_name=author,
-    )
-
-def _convert_repo_to_document(repo: GitRepository) -> Document:
-    doc = Document(
-        id=repo.id,
-        sections=[Section(link=repo.url, text=repo.name)],
-        source=DocumentSource.AZUREDEVOPS,
-        semantic_identifier=repo.name,
-        doc_updated_at=datetime.now().replace(tzinfo=timezone.utc),
-        primary_owners=[],
-        metadata={"type": "Repository"},
-    )
-    return doc
-
-def _convert_pull_request_to_document(pr: GitPullRequest) -> Document:
-    doc = Document(
-        id=pr.url,
-        sections=[Section(link=pr.url, text=pr.description or "")],
-        source=DocumentSource.AZUREDEVOPS,
-        semantic_identifier=pr.title,
-        doc_updated_at=pr.creation_date.replace(tzinfo=timezone.utc),
-        primary_owners=[get_author(pr.created_by.display_name)],
-        metadata={"state": pr.status, "type": "PullRequest"},
-    )
-    return doc
-
 def format_date(date: str) -> datetime:
     formats = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S.%fZ"]  # Handles both cases
     for fmt in formats:
@@ -87,21 +57,6 @@ def format_date(date: str) -> datetime:
         except ValueError:
             continue
     raise ValueError(f"Time data {date} does not match known formats")
-
-def _convert_workitem_to_document(work_item: WorkItem, base_url) -> Document:
-    work_item_url = f"{base_url}/_workItems/edit/{work_item.id}"
-    changed_date = format_date(work_item.fields.get("System.ChangedDate"))
-    doc = Document(
-        id=work_item_url,
-        sections=[Section(link=work_item_url, text=work_item.fields.get("System.Description") or "")],
-        source=DocumentSource.AZUREDEVOPS,
-        semantic_identifier=work_item.fields.get("System.Title", "Unnamed"),
-        doc_updated_at=changed_date.replace(tzinfo=timezone.utc),
-        primary_owners=[get_author(work_item.fields.get("System.CreatedBy")["displayName"])],
-        metadata={"state": work_item.fields.get("System.State"), "type": work_item.fields.get("System.WorkItemType")},
-    )
-    return doc
-
 
 def _convert_code_to_document(
     repo_id: str, content_string: str, repo_url: str, project_name: str
@@ -134,8 +89,6 @@ class AzureDevopsConnector(LoadConnector, PollConnector):
         self.repo_name = repo_name
         self.batch_size = batch_size
         self.state_filter = state_filter
-        self.include_prs = include_prs
-        self.include_workitems = include_workitems
         self.include_code_files = include_code_files
         self.azdo_client: Connection | None = None
 
@@ -197,39 +150,6 @@ class AzureDevopsConnector(LoadConnector, PollConnector):
                         )
                 if code_doc_batch:
                     yield code_doc_batch
-        
-        if self.include_prs:
-            # Get PRs
-            git_client = self.azdo_client.clients.get_git_client()
-            repo = git_client.get_repository(project=self.project_name, repository_id=self.repo_name)
-            search_criteria = GitPullRequestSearchCriteria(repository_id=repo.id, status="all")
-            prs = git_client.get_pull_requests_by_project(project=self.project_name, search_criteria=search_criteria)
-            for pr_batch in _batch_azuredevops_objects(prs, self.batch_size):
-                pr_doc_batch: list[Document] = []
-                for pr in pr_batch:
-                    pr_doc_batch.append(_convert_pull_request_to_document(pr))
-                yield pr_doc_batch
-
-        if self.include_workitems:
-            # Get workitems
-            work_item_client = self.azdo_client.clients.get_work_item_tracking_client()
-            query = f"SELECT [System.Id], [System.Title] FROM WorkItems WHERE [System.TeamProject] = '{self.project_name}' AND [System.ChangedDate] > @today - 180 ORDER BY [System.CreatedDate] Desc"
-            work_items = work_item_client.query_by_wiql(Wiql(query=query))
-            work_item_ids = [item.id for item in work_items.work_items]
-            
-            batch_size = 200
-            work_items = []
-
-            for i in range(0, len(work_item_ids), batch_size):
-                batch_ids = work_item_ids[i : i + batch_size]  # Get batch of IDs
-                work_items_batch = work_item_client.get_work_items(batch_ids, expand="All")  # Fetch full details
-                work_items.extend(work_items_batch)
-
-            for workitem_batch in _batch_azuredevops_objects(work_items, self.batch_size):
-                workitem_doc_batch: list[Document] = []
-                for work_item in workitem_batch:
-                    workitem_doc_batch.append(_convert_workitem_to_document(work_item, self.base_url))
-                yield workitem_doc_batch   
 
 
     def load_from_state(self) -> GenerateDocumentsOutput:
