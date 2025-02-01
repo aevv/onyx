@@ -131,7 +131,7 @@ class AzureDevopsManagementConnector(LoadConnector, PollConnector):
     def _fetch_from_azuredevops(self, start: SecondsSinceUnixEpoch, end: SecondsSinceUnixEpoch) -> GenerateDocumentsOutput:
         if self.azdo_client is None:
             raise ConnectorMissingCredentialError("AzureDevops")
-        
+        query_length = "100"
         if start is None and end is None:
             query_length = self.number_days if self.number_days is not None else "100"
         else:
@@ -146,9 +146,7 @@ class AzureDevopsManagementConnector(LoadConnector, PollConnector):
             query_state = f"IN ('{csv}')"
 
         # Get workitems
-        work_item_client = self.azdo_client.clients.get_work_item_tracking_client()
-
-        x = 1 + self.number_days
+        work_item_client = self.azdo_client.clients.get_work_item_tracking_client()        
         
         query = f"""SELECT [System.Id]
           FROM WorkItems 
