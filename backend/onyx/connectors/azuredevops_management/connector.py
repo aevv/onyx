@@ -74,7 +74,7 @@ def _convert_workitem_to_document(work_item: WorkItem, base_url) -> Document:
             Section(link=work_item_url, text=work_item.fields.get("Microsoft.VSTS.Common.AcceptanceCriteria") or ""),
             ],
         source=DocumentSource.AZUREDEVOPSMANAGEMENT,
-        semantic_identifier=work_item.id,
+        semantic_identifier=f"AZDOWorkItem:{work_item.id}",
         doc_updated_at=changed_date.replace(tzinfo=timezone.utc),
         primary_owners=[get_author(work_item.fields.get("System.CreatedBy")["displayName"]), currently_assigned],
         metadata={
