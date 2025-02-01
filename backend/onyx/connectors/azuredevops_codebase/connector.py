@@ -120,13 +120,12 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
         return self._fetch_from_azuredevops()
 
     def get_repo_files_list(self, repo_path: str) -> list[str]: 
-        allowed_extensions = {".cs"} 
         allowed_filenames = {"README", "README.md", "README.txt"} 
         
         file_list = []
         for root, _, files in os.walk(repo_path):
             for file in files:
-                if file in allowed_filenames or os.path.splitext(file)[1] in allowed_extensions:
+                if file in allowed_filenames or os.path.splitext(file)[1] in self.extensions:
                     file_list.append(os.path.join(root, file))  
         return file_list
 
