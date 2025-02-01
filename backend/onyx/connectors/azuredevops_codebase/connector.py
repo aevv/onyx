@@ -91,6 +91,15 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
         git_client = self.azdo_client.clients.get_git_client()
         repo = git_client.get_repository(project=self.project_name, repository_id=self.repo_name)
         
+        subprocess.run(["git", "config", "--global", "credential.helper", "store"], check=True)
+        credential_data = f"""
+            protocol=https
+            host=dev.azure.com
+            username=onyx@azure.com
+            password={self.pat}
+            """
+        subprocess.run(["git", "credential", "approve"], input=credential_data.encode(), check=True)
+        
         organization = self.base_url.split("/")[-1]
         repo_path = f"{destination}/{self.repo_name}"
         repo_url = f"{self.base_url}/{self.project_name}/_git/{self.repo_name}"
