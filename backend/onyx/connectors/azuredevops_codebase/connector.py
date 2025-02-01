@@ -117,22 +117,7 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
         return self._fetch_from_azuredevops()
 
     def poll_source(self, start: SecondsSinceUnixEpoch, end: SecondsSinceUnixEpoch) -> GenerateDocumentsOutput:
-        repo_path = f"{destination}/{self.repo_name}"
-
-        #os.chdir(repo_path)
-
-        diff_result = subprocess.run(
-            ["git", "diff", "--name-only", "HEAD"],
-            cwd=repo_path,
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        files_modified = diff_result.stdout.strip().split("\n") if result.stdout else []
-        
-        if files_modified:
-            file_list = self.get_repo_files_list(repo_path)
-            self.process_files(file_list, repo, repo_url, repo_path)
+        return self._fetch_from_azuredevops()
 
     def get_repo_files_list(self, repo_path: str) -> list[str]: 
         allowed_extensions = {".cs"} 
