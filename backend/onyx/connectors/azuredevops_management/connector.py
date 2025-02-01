@@ -62,10 +62,36 @@ def _convert_workitem_to_document(work_item: WorkItem, base_url) -> Document:
     work_item_url = f"{base_url}/_workItems/edit/{work_item.id}"
     changed_date = format_date(work_item.fields.get("System.ChangedDate"))
     currently_assigned = None
-    assigned_to = work_item.fields.get("System.AssignedTo")
-    if assigned_to is not None:
-        currently_assigned = get_author(assigned_to["displayName"])
 
+    metadata = {}
+    state = work_item.fields.get("System.State")
+    if state is not None:
+        metadata["state"] = state
+
+    work_item_type = work_item.fields.get("System.WorkItemType")
+    if work_item_type is not None:
+        metadata["type"] = work_item_type
+
+    iteration = work_item.fields.get("System.IterationPath")
+    if iteration is not None:
+        metadata["iteration"] = iteration
+
+    area = work_item.fields.get("System.AreaPath")
+    if area is not None:
+        metadata["area"] = area
+
+    priority = work_item.fields.get("Microsoft.VSTS.Common.Priority")
+    if priority is not None:
+        metadata["priority"] = priority
+    
+    tags = work_item.fields.get("System.Tags")
+    if tags is not None:
+        metadata["tags"] = tags
+    
+    assigned_to = work_item.fields.get("System.AssignedTo")
+    if assigned_to is not None:        
+        metadata["assigned_to"] = assigned_to["displayName"]
+    
     doc = Document(
         id=work_item_url,
         sections=[
@@ -76,16 +102,8 @@ def _convert_workitem_to_document(work_item: WorkItem, base_url) -> Document:
         source=DocumentSource.AZUREDEVOPSMANAGEMENT,
         semantic_identifier=f"AZDOWorkItem:{work_item.id}",
         doc_updated_at=changed_date.replace(tzinfo=timezone.utc),
-        primary_owners=[get_author(work_item.fields.get("System.CreatedBy")["displayName"]), currently_assigned],
-        metadata={
-            "state": work_item.fields.get("System.State"), 
-            "type": work_item.fields.get("System.WorkItemType"),
-            "iteration": work_item.fields.get("System.IterationPath"),
-            "area": work_item.fields.get("System.AreaPath"),
-            "priority": work_item.fields.get("Microsoft.VSTS.Common.Priority"),
-            "tags": work_item.fields.get("System.Tags"),
-            "assigned_to": currently_assigned
-            },
+        primary_owners=[get_author(work_item.fields.get("System.CreatedBy")["displayName"])],
+        metadata=metadata,
     )
     return doc
 
