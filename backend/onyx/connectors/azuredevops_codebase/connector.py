@@ -144,7 +144,7 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
 
         if not first_clone and start is not None and end is not None:
 
-            result = subprocess.run(["git", "log", f"--since={datetime.fromtimestamp(start)}",
+            result = subprocess.run(["git", "-C", repo_path, "log", f"--since={datetime.fromtimestamp(start)}",
                                       f"--until={datetime.fromtimestamp(end)}", "--name-only", 
                                       "--pretty=format:"], check=True, text=True, capture_output=True)
             changed_files = set(result.stdout.splitlines())[1:]

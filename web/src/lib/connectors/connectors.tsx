@@ -230,12 +230,37 @@ export const connectorConfigs: Record<
   azuredevops_management: {
     description: "Configure Azure Devops Management connector",
     values: [
+      {
+        type: "text",
+        query: "Enter project name:",
+        label: "Project Name",
+        name: "project_name",
+        optional: false,
+      },
+      {
+        type: "text",
+        query: "Enter number of days to index changes for:",
+        label: "Days to Index",
+        name: "number_days",
+        description: "Number of days to index changes for. Default is 100 days. AZDO can only return 20,000 work items in one query.",
+        optional: false,
+        default: "100"
+      },
+      {
+        type: "text",
+        query: "Enter work item states to include",
+        label: "State filters",
+        name: "state_filter",
+        description: "Specify item state to index. If no state is specified, all work items will be indexed.",
+        optional: true,
+        default: "all"
+      },
     ],
     advanced_values: [],
   },
   azuredevops_codebase: {
     description: "Configure Azure Devops codebase connector",
-    values: [      
+    values: [
       {
         type: "text",
         query: "Enter project name:",
@@ -1281,6 +1306,8 @@ export interface GitlabConfig {
 }
 
 export interface AzureDevopsManagementConfig {
+  project_name: string;
+  state_filter: string;
 }
 
 export interface AzureDevopsCodebaseConfig {

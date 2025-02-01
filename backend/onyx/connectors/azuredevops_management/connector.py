@@ -62,25 +62,46 @@ def format_date(date: str) -> datetime:
 def _convert_workitem_to_document(work_item: WorkItem, base_url) -> Document:
     work_item_url = f"{base_url}/_workItems/edit/{work_item.id}"
     changed_date = format_date(work_item.fields.get("System.ChangedDate"))
+    currently_assigned = None
+    assigned_to = work_item.fields.get("System.AssignedTo")
+    if assigned_to is not None:
+        currently_assigned = get_author(assigned_to["displayName"])
+
     doc = Document(
         id=work_item_url,
-        sections=[Section(link=work_item_url, text=work_item.fields.get("System.Description") or "")],
+        sections=[
+            Section(link=work_item_url, text=work_item.fields.get("System.Description") or ""),
+            Section(link=work_item_url, text=work_item.fields.get("Microsoft.VSTS.TCM.SystemInfo") or ""),
+            Section(link=work_item_url, text=work_item.fields.get("Microsoft.VSTS.Common.AcceptanceCriteria") or ""),
+            ],
         source=DocumentSource.AZUREDEVOPSMANAGEMENT,
-        semantic_identifier=work_item.fields.get("System.Title", "Unnamed"),
+        semantic_identifier=work_item.id,
         doc_updated_at=changed_date.replace(tzinfo=timezone.utc),
-        primary_owners=[get_author(work_item.fields.get("System.CreatedBy")["displayName"])],
-        metadata={"state": work_item.fields.get("System.State"), "type": work_item.fields.get("System.WorkItemType")},
+        primary_owners=[get_author(work_item.fields.get("System.CreatedBy")["displayName"]), currently_assigned],
+        metadata={
+            "state": work_item.fields.get("System.State"), 
+            "type": work_item.fields.get("System.WorkItemType"),
+            "iteration": work_item.fields.get("System.IterationPath"),
+            "area": work_item.fields.get("System.AreaPath"),
+            "priority": work_item.fields.get("Microsoft.VSTS.Common.Priority"),
+            "tags": work_item.fields.get("System.Tags"),
+            "assigned_to": currently_assigned
+            },
     )
     return doc
 
 class AzureDevopsManagementConnector(LoadConnector, PollConnector):
     def __init__(
         self,
-        batch_size: int = INDEX_BATCH_SIZE,
-        state_filter: str = "all",
+        project_name: str,
+        number_days: str,
+        state_filter: str,
+        batch_size: int = INDEX_BATCH_SIZE
     ) -> None:
         self.batch_size = batch_size
         self.state_filter = state_filter
+        self.project_name = project_name
+        self.number_days = number_days
         self.azdo_client: Connection | None = None
 
     def load_credentials(self, credentials: dict[str, Any]) -> dict[str, Any] | None:
@@ -90,39 +111,50 @@ class AzureDevopsManagementConnector(LoadConnector, PollConnector):
         self.pat = credentials["azuredevops_access_token"]       
         return None
 
-    def _fetch_from_azuredevops(self) -> GenerateDocumentsOutput:
+    def _fetch_from_azuredevops(self, start: SecondsSinceUnixEpoch, end: SecondsSinceUnixEpoch) -> GenerateDocumentsOutput:
         if self.azdo_client is None:
             raise ConnectorMissingCredentialError("AzureDevops")
         
+        if start is None and end is None:
+            query_length = int(self.number_days) if self.number_days is not None else 0
+        else:
+            query_length = (end - start) * (24 * 60 * 60)
+
+        if self.state_filter == "all" or self.state_filter is None:
+            query_state = "<> ''"
+        else:
+            query_state = f"= '{self.state_filter}'"
 
         # Get workitems
         work_item_client = self.azdo_client.clients.get_work_item_tracking_client()
-        query = f"SELECT [System.Id], [System.Title] FROM WorkItems WHERE [System.TeamProject] = 'Codat' AND [System.ChangedDate] > @today - 180 ORDER BY [System.CreatedDate] Desc"
+        
+        query = f"""SELECT [System.Id]
+          FROM WorkItems 
+          WHERE [System.TeamProject] = '{self.project_name}' 
+           AND [System.ChangedDate] > @today - {query_length}
+           AND [System.State] {query_state} 
+          ORDER BY [System.CreatedDate] Desc"""
+        
         work_items = work_item_client.query_by_wiql(Wiql(query=query))
         work_item_ids = [item.id for item in work_items.work_items]
-        
-        # TODO: Batch better
-        batch_size = 200
-        work_items = []
 
-        for i in range(0, len(work_item_ids), batch_size):
-            batch_ids = work_item_ids[i : i + batch_size]  # Get batch of IDs
+        for i in range(0, len(work_item_ids), self.batch_size):
+            batch_ids = work_item_ids[i : i + self.batch_size]  # Get batch of IDs
             work_items_batch = work_item_client.get_work_items(batch_ids, expand="All")  # Fetch full details
-            work_items.extend(work_items_batch)
 
-        for workitem_batch in _batch_azuredevops_objects(work_items, self.batch_size):
-            workitem_doc_batch: list[Document] = []
-            for work_item in workitem_batch:
-                workitem_doc_batch.append(_convert_workitem_to_document(work_item, self.base_url))
-            yield workitem_doc_batch   
+            for workitem_batch in _batch_azuredevops_objects(work_items_batch, self.batch_size):
+                workitem_doc_batch: list[Document] = []
+                for work_item in workitem_batch:
+                    workitem_doc_batch.append(_convert_workitem_to_document(work_item, self.base_url))
+                yield workitem_doc_batch            
 
 
     def load_from_state(self) -> GenerateDocumentsOutput:
-        return self._fetch_from_azuredevops()
+        return self._fetch_from_azuredevops(start=None, end=None)
 
     # TODO: Ongoing indexing
     def poll_source(self, start: SecondsSinceUnixEpoch, end: SecondsSinceUnixEpoch) -> GenerateDocumentsOutput:
-        return self._fetch_from_azuredevops()
+        return self._fetch_from_azuredevops(start=start, end=end)
 
 
 if __name__ == "__main__":
@@ -130,7 +162,9 @@ if __name__ == "__main__":
 
     connector = AzureDevopsManagementConnector(
         batch_size=10,
-        state_filter="all"
+        state_filter=os.environ["STATE_FILTER"].lower(),
+        project_name=os.environ["PROJECT_NAME"],
+        number_days=os.environ["NUMBER_DAYS"]
     )
 
     connector.load_credentials(
