@@ -161,7 +161,7 @@ class AzureDevopsManagementConnector(LoadConnector, PollConnector):
            AND [System.State] {query_state} 
           ORDER BY [System.CreatedDate] Desc"""
         
-        logger.error(query)
+        # logger.error(query)
         raise LoggingException("query")        
         
         work_items = work_item_client.query_by_wiql(Wiql(query=query))
