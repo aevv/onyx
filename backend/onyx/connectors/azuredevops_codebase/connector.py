@@ -143,9 +143,6 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
             subprocess.run(["git", "-C", repo_path, "pull"], check=True)
 
         file_list = self.get_repo_files_list(repo_path)
-        
-        logger.info(f"codat: Processing {len(file_list)} files from {self.repo_name} repository")
-        logger.info(f"codat: fc {first_clone} start {start} end {end}")
 
         if start > 0.1:
             result = subprocess.run(["git", "-C", repo_path, "log", f"--since={datetime.fromtimestamp(start)}",
