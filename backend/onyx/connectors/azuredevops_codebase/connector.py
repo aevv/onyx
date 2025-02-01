@@ -83,41 +83,45 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
         self.pat = credentials["azuredevops_access_token"]       
         return None
 
-    def _fetch_from_azuredevops(self) -> GenerateDocumentsOutput:
+    def _fetch_from_azuredevops(self, start: SecondsSinceUnixEpoch | None, end: SecondsSinceUnixEpoch | None) -> GenerateDocumentsOutput:
         if self.azdo_client is None:
             raise ConnectorMissingCredentialError("AzureDevops")
         
         # Get code
         git_client = self.azdo_client.clients.get_git_client()
         repo = git_client.get_repository(project=self.project_name, repository_id=self.repo_name)
-
-        os.makedirs(destination, exist_ok=True)
-
-        # TODO can we remove credentials?
-        # subprocess.run(["git", "config", "--global", "credential.helper", "store"], check=True)
-
-        credential_data = f"""
-            protocol=https
-            host=dev.azure.com
-            username=onyx@azure.com
-            password={self.pat}
-            """
+        
         organization = self.base_url.split("/")[-1]
         repo_path = f"{destination}/{self.repo_name}"
         repo_url = f"{self.base_url}/{self.project_name}/_git/{self.repo_name}"
         clone_url = f"https://{self.pat}@dev.azure.com/{organization}/{self.project_name}/_git/{self.repo_name}"
-        # subprocess.run(["git", "credential", "approve"], input=credential_data.encode(), check=True)
-        subprocess.run(["git", "clone", "--branch", self.branch, clone_url, repo_path], check=True)
+        first_clone = False
+        # check if destination exists
+        if not os.path.exists(destination):        
+            os.makedirs(destination, exist_ok=True)
+            subprocess.run(["git", "clone", "--branch", self.branch, clone_url, repo_path], check=True)
+            first_clone = True
+        else:
+            subprocess.run(["git", "-C", repo_path, "pull"], check=True)
 
         file_list = self.get_repo_files_list(repo_path)
+
+        if not first_clone and start is not None and end is not None:
+            # Get all files for all commits between start and end using git cli
+            # git log --since="2024-01-01" --until="2024-01-31" --name-only --pretty=format: | sort -u
+
+            result = subprocess.run(["git", "log", f"--since={datetime.datetime.fromtimestamp(start)}", f"--until={datetime.datetime.fromtimestamp(end)}", "--name-only", "--pretty=format:"], check=True, text=True, capture_output=True)
+            changed_files = set(result.stdout.splitlines())[1:]
+            file_list = [f for f in file_list if f in changed_files]
+
         yield from self.process_files(file_list, repo, repo_url, repo_path)
 
 
     def load_from_state(self) -> GenerateDocumentsOutput:
-        return self._fetch_from_azuredevops()
+        return self._fetch_from_azuredevops(start=None, end=None)
 
     def poll_source(self, start: SecondsSinceUnixEpoch, end: SecondsSinceUnixEpoch) -> GenerateDocumentsOutput:
-        return self._fetch_from_azuredevops()
+        return self._fetch_from_azuredevops(start=start, end=end)
 
     def get_repo_files_list(self, repo_path: str) -> list[str]: 
         allowed_filenames = {"README", "README.md", "README.txt"} 
