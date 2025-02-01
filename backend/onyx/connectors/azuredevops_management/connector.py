@@ -82,7 +82,7 @@ def _convert_workitem_to_document(work_item: WorkItem, base_url) -> Document:
 
     priority = work_item.fields.get("Microsoft.VSTS.Common.Priority")
     if priority is not None:
-        metadata["priority"] = priority
+        metadata["priority"] = str(priority)
     
     tags = work_item.fields.get("System.Tags")
     if tags is not None:
