@@ -254,7 +254,7 @@ export const connectorConfigs: Record<
         type: "text",
         query: "Enter the branch name:",
         label: "Branch Name",
-        name: "branch_name",
+        name: "branch",
         optional: false,
       },
       {

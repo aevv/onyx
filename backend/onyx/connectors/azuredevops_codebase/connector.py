@@ -71,7 +71,9 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
     ) -> None:
         self.repo_name = repo_name
         self.project_name = project_name
-        self.batch_size = batch_size        
+        self.batch_size = batch_size
+        self.branch = branch
+        self.extensions = extensions     
         self.azdo_client: Connection | None = None
 
     def load_credentials(self, credentials: dict[str, Any]) -> dict[str, Any] | None:
