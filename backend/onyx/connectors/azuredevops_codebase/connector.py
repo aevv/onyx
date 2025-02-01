@@ -143,6 +143,8 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
             subprocess.run(["git", "-C", repo_path, "pull"], check=True)
 
         file_list = self.get_repo_files_list(repo_path)
+        
+        logger.info(f"codat: Processing {len(file_list)} files from {self.repo_name} repository")
 
         if not first_clone and start is not None and end is not None:
             result = subprocess.run(["git", "-C", repo_path, "log", f"--since={datetime.fromtimestamp(start)}",
@@ -150,8 +152,10 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
                                       "--pretty=format:"], check=True, text=True, capture_output=True)
             changed_files = set(result.stdout.splitlines())            
             changed_files.discard("")
+            logger.info(f"codat: Processing {len(changed_files)} files from {self.repo_name} repository")
 
             file_list = [f for f in file_list if f in changed_files]
+            logger.info(f"codat: Processing {len(file_list)} files from {self.repo_name} repository")
 
         yield from self.process_files(file_list, repo, repo_url, repo_path)
 

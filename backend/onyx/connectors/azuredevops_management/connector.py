@@ -155,13 +155,7 @@ class AzureDevopsManagementConnector(LoadConnector, PollConnector):
           WHERE [System.TeamProject] = '{self.project_name}' 
            AND [System.ChangedDate] > @StartOfDay('-{query_length}d')
            AND [System.State] {query_state} 
-          ORDER BY [System.CreatedDate] Desc"""      
-        
-        logger.info(f"codat: ql {query_length}")
-        logger.info(f"codat: start {start}")
-        logger.info(f"codat: end {end}")
-        logger.info(f"codat: number {self.number_days}")
-        logger.info(f"codat: q {query}")
+          ORDER BY [System.CreatedDate] Desc"""
         
         work_items = work_item_client.query_by_wiql(Wiql(query=query))
         work_item_ids = [item.id for item in work_items.work_items]
