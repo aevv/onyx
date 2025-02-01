@@ -110,7 +110,7 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
         subprocess.run(["git", "clone", "--branch", self.branch, clone_url, repo_path], check=True)
 
         file_list = self.get_repo_files_list(repo_path)
-        self.process_files(file_list, repo, repo_url, repo_path)
+        yield from self.process_files(file_list, repo, repo_url, repo_path)
 
 
     def load_from_state(self) -> GenerateDocumentsOutput:
