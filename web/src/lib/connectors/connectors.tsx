@@ -1306,6 +1306,7 @@ export interface GitlabConfig {
 
 export interface AzureDevopsManagementConfig {
   project_name: string;
+  number_days: string;
   state_filter: string;
 }
 
