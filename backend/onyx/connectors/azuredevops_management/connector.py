@@ -153,7 +153,7 @@ class AzureDevopsManagementConnector(LoadConnector, PollConnector):
         query = f"""SELECT [System.Id]
           FROM WorkItems 
           WHERE [System.TeamProject] = '{self.project_name}' 
-           AND [System.ChangedDate] > @today - {query_length}
+           AND [System.ChangedDate] > @today - {150}
            AND [System.State] {query_state} 
           ORDER BY [System.CreatedDate] Desc"""      
         
