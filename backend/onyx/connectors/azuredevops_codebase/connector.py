@@ -43,10 +43,36 @@ def _batch_azuredevops_objects(
             break
         yield batch
 
+def _get_language_from_extension(extension: str) -> str:
+    extension_to_language = {
+        "py": "Python",
+        "js": "JavaScript",
+        "ts": "TypeScript",
+        "cs": "C#",
+        "html": "HTML",
+        "css": "CSS",
+        "json": "JSON",
+        "xml": "XML",
+        "yaml": "YAML",
+        "yml": "YAML",
+        "sql": "SQL",
+        "sh": "Shell",
+        "bash": "Shell",
+        "ps1": "PowerShell",
+        "bat": "Batch",
+        "cmd": "Batch",
+        "tf": "Terraform",
+        "tfvars": "Terraform",
+        "md": "Markdown",
+    }
+
+    return extension_to_language.get(extension, "Unknown")
+
 def _convert_code_to_document(
     repo_id: str, repo_url: str, repo_name: str, content_string: str, file_path: str
 ) -> Document:
-    # https://dev.azure.com/{org}/{project}/_git/{repo}?path=/{path}
+    extension = file_path.split(".")[-1].lower()
+    language = _get_language_from_extension(extension)
     file_url = f"{repo_url}?path={file_path}"
     doc = Document(
         id=f"{repo_id}:{repo_url}:{file_path}",
@@ -55,7 +81,7 @@ def _convert_code_to_document(
         semantic_identifier=f"{repo_name}/{file_path}",
         doc_updated_at=datetime.now().replace(tzinfo=timezone.utc),  # Use current time
         primary_owners=[],
-        metadata={"type": "CodeFile"},
+        metadata={"type": "CodeFile", "language": language, "repo": repo_name},
     )
     return doc
 
@@ -106,7 +132,7 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
         clone_url = f"https://{self.pat}@dev.azure.com/{organization}/{self.project_name}/_git/{self.repo_name}"
         first_clone = False
         os.makedirs(destination, exist_ok=True)
-        
+
         # check if repo exists
         if not os.path.exists(repo_path):        
             subprocess.run(["git", "clone", "--branch", self.branch, clone_url, repo_path], check=True)
@@ -117,10 +143,10 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
         file_list = self.get_repo_files_list(repo_path)
 
         if not first_clone and start is not None and end is not None:
-            # Get all files for all commits between start and end using git cli
-            # git log --since="2024-01-01" --until="2024-01-31" --name-only --pretty=format: | sort -u
 
-            result = subprocess.run(["git", "log", f"--since={datetime.datetime.fromtimestamp(start)}", f"--until={datetime.datetime.fromtimestamp(end)}", "--name-only", "--pretty=format:"], check=True, text=True, capture_output=True)
+            result = subprocess.run(["git", "log", f"--since={datetime.fromtimestamp(start)}",
+                                      f"--until={datetime.fromtimestamp(end)}", "--name-only", 
+                                      "--pretty=format:"], check=True, text=True, capture_output=True)
             changed_files = set(result.stdout.splitlines())[1:]
             file_list = [f for f in file_list if f in changed_files]
 
@@ -134,12 +160,10 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
         return self._fetch_from_azuredevops(start=start, end=end)
 
     def get_repo_files_list(self, repo_path: str) -> list[str]: 
-        allowed_filenames = {"README", "README.md", "README.txt"} 
-        
         file_list = []
         for root, _, files in os.walk(repo_path):
             for file in files:
-                if file in allowed_filenames or os.path.splitext(file)[1] in self.extensions:
+                if os.path.splitext(file)[1] in self.extensions:
                     file_list.append(os.path.join(root, file))  
         return file_list
 
