@@ -90,7 +90,7 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
         # Get code
         git_client = self.azdo_client.clients.get_git_client()
         repo = git_client.get_repository(project=self.project_name, repository_id=self.repo_name)
-        
+
         subprocess.run(["git", "config", "--global", "credential.helper", "store"], check=True)
         credential_data = f"""
             protocol=https
@@ -105,9 +105,10 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
         repo_url = f"{self.base_url}/{self.project_name}/_git/{self.repo_name}"
         clone_url = f"https://{self.pat}@dev.azure.com/{organization}/{self.project_name}/_git/{self.repo_name}"
         first_clone = False
-        # check if destination exists
-        if not os.path.exists(destination):        
-            os.makedirs(destination, exist_ok=True)
+        os.makedirs(destination, exist_ok=True)
+        
+        # check if repo exists
+        if not os.path.exists(repo_path):        
             subprocess.run(["git", "clone", "--branch", self.branch, clone_url, repo_path], check=True)
             first_clone = True
         else:
