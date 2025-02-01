@@ -134,7 +134,7 @@ class AzureDevopsManagementConnector(LoadConnector, PollConnector):
             raise ConnectorMissingCredentialError("AzureDevops")
 
         query_length = "100"
-        if start is None:
+        if start is 0.0:
             query_length = self.number_days if self.number_days is not None else "100"
         else:
             query_length = math.ceil((end - start) / (24 * 60 * 60))
