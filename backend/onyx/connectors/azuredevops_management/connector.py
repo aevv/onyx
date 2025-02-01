@@ -117,7 +117,7 @@ class AzureDevopsManagementConnector(LoadConnector, PollConnector):
         if start is None and end is None:
             query_length = int(self.number_days) if self.number_days is not None else 0
         else:
-            query_length = (end - start) * (24 * 60 * 60)
+            query_length = (end - start) / (24 * 60 * 60)
         
         if self.state_filter is None or len(self.state_filter) == 0: 
             query_state = "<> ''"
