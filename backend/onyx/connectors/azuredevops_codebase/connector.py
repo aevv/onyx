@@ -131,7 +131,7 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
         return file_list
 
     def process_files(self, file_list, repo, repo_url, repo_path):
-        for item_batch in self._batch_azuredevops_objects(file_list):
+        for item_batch in _batch_azuredevops_objects(file_list):
             code_doc_batch = []
             for item in item_batch:
                 with open(item, "r", encoding="utf-8", errors="ignore") as f:
