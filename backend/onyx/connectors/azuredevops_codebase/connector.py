@@ -138,7 +138,7 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
                     file_content = f.read()
 
                     code_doc_batch.append(
-                        self._convert_code_to_document(
+                        _convert_code_to_document(
                             repo.id,
                             repo_url,
                             self.repo_name,
