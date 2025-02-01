@@ -107,10 +107,6 @@ def _convert_workitem_to_document(work_item: WorkItem, base_url) -> Document:
     )
     return doc
 
-class LoggingException(BaseException):
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
-
 class AzureDevopsManagementConnector(LoadConnector, PollConnector):
     def __init__(
         self,
@@ -159,10 +155,7 @@ class AzureDevopsManagementConnector(LoadConnector, PollConnector):
           WHERE [System.TeamProject] = '{self.project_name}' 
            AND [System.ChangedDate] > @today - {query_length}
            AND [System.State] {query_state} 
-          ORDER BY [System.CreatedDate] Desc"""
-        
-        # logger.error(query)
-        raise LoggingException("query")        
+          ORDER BY [System.CreatedDate] Desc"""      
         
         work_items = work_item_client.query_by_wiql(Wiql(query=query))
         work_item_ids = [item.id for item in work_items.work_items]
