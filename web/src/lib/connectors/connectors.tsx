@@ -247,13 +247,12 @@ export const connectorConfigs: Record<
         default: "100"
       },
       {
-        type: "text",
+        type: "list",
         query: "Enter work item states to include",
         label: "State filters",
         name: "state_filter",
-        description: "Specify item state to index. If no state is specified, all work items will be indexed.",
+        description: "Specify item states to index. If no states are specified, all work items will be indexed. If 'all' is included, all states will be indexed.",
         optional: true,
-        default: "all"
       },
     ],
     advanced_values: [],

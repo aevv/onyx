@@ -5,9 +5,8 @@ from collections.abc import Iterable
 from collections.abc import Iterator
 from datetime import datetime
 from datetime import timezone
+from typing import List
 from typing import Any
-import time
-import subprocess 
 import os
 
 from azure.devops.connection import Connection
@@ -95,7 +94,7 @@ class AzureDevopsManagementConnector(LoadConnector, PollConnector):
         self,
         project_name: str,
         number_days: str,
-        state_filter: str,
+        state_filter: List[str],
         batch_size: int = INDEX_BATCH_SIZE
     ) -> None:
         self.batch_size = batch_size
@@ -119,11 +118,14 @@ class AzureDevopsManagementConnector(LoadConnector, PollConnector):
             query_length = int(self.number_days) if self.number_days is not None else 0
         else:
             query_length = (end - start) * (24 * 60 * 60)
-
-        if self.state_filter == "all" or self.state_filter is None:
+        
+        if self.state_filter is None or len(self.state_filter) == 0: 
+            query_state = "<> ''"
+        elif "all" in [state.lower() for state in self.state_filter]:
             query_state = "<> ''"
         else:
-            query_state = f"= '{self.state_filter}'"
+            csv = "','".join(self.state_filter)
+            query_state = f"IN ('{csv}')"
 
         # Get workitems
         work_item_client = self.azdo_client.clients.get_work_item_tracking_client()
@@ -152,7 +154,6 @@ class AzureDevopsManagementConnector(LoadConnector, PollConnector):
     def load_from_state(self) -> GenerateDocumentsOutput:
         return self._fetch_from_azuredevops(start=None, end=None)
 
-    # TODO: Ongoing indexing
     def poll_source(self, start: SecondsSinceUnixEpoch, end: SecondsSinceUnixEpoch) -> GenerateDocumentsOutput:
         return self._fetch_from_azuredevops(start=start, end=end)
 
@@ -162,7 +163,7 @@ if __name__ == "__main__":
 
     connector = AzureDevopsManagementConnector(
         batch_size=10,
-        state_filter=os.environ["STATE_FILTER"].lower(),
+        state_filter=os.environ["STATE_FILTER"],
         project_name=os.environ["PROJECT_NAME"],
         number_days=os.environ["NUMBER_DAYS"]
     )
