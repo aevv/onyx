@@ -132,6 +132,7 @@ class AzureDevopsManagementConnector(LoadConnector, PollConnector):
     def _fetch_from_azuredevops(self, start: SecondsSinceUnixEpoch, end: SecondsSinceUnixEpoch) -> GenerateDocumentsOutput:
         if self.azdo_client is None:
             raise ConnectorMissingCredentialError("AzureDevops")
+
         query_length = "100"
         if start is None and end is None:
             query_length = self.number_days if self.number_days is not None else "100"
@@ -155,6 +156,12 @@ class AzureDevopsManagementConnector(LoadConnector, PollConnector):
            AND [System.ChangedDate] > @StartOfDay('-{query_length}d')
            AND [System.State] {query_state} 
           ORDER BY [System.CreatedDate] Desc"""      
+        
+        logger.info(f"codat: ql {query_length}")
+        logger.info(f"codat: start {start}")
+        logger.info(f"codat: end {end}")
+        logger.info(f"codat: number {self.number_days}")
+        logger.info(f"codat: q {query}")
         
         work_items = work_item_client.query_by_wiql(Wiql(query=query))
         work_item_ids = [item.id for item in work_items.work_items]
