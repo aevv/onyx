@@ -94,7 +94,7 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
         os.makedirs(destination, exist_ok=True)
 
         # TODO can we remove credentials?
-        subprocess.run(["git", "config", "--global", "credential.helper", "store"], check=True)
+        # subprocess.run(["git", "config", "--global", "credential.helper", "store"], check=True)
 
         credential_data = f"""
             protocol=https
@@ -106,7 +106,7 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
         repo_path = f"{destination}/{self.repo_name}"
         repo_url = f"{self.base_url}/{self.project_name}/_git/{self.repo_name}"
         clone_url = f"https://{self.pat}@dev.azure.com/{organization}/{self.project_name}/_git/{self.repo_name}"
-        subprocess.run(["git", "credential", "approve"], input=credential_data.encode(), check=True)
+        # subprocess.run(["git", "credential", "approve"], input=credential_data.encode(), check=True)
         subprocess.run(["git", "clone", "--branch", self.branch, clone_url, repo_path], check=True)
 
         file_list = self.get_repo_files_list(repo_path)
