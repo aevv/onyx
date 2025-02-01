@@ -6,16 +6,13 @@ from collections.abc import Iterator
 from datetime import datetime
 from datetime import timezone
 from typing import Any
+from typing import List
 import time
 import subprocess 
 import os
 
 from azure.devops.connection import Connection
 from msrest.authentication import BasicAuthentication
-from azure.devops.v7_1.git.models import GitPullRequest
-from azure.devops.v7_1.git.models import GitRepository
-from azure.devops.v7_1.git.models import GitItem
-from azure.devops.v7_1.git.models import GitPullRequestSearchCriteria
 
 import pytz
 
@@ -33,7 +30,7 @@ from onyx.utils.logger import setup_logger
 
 
 logger = setup_logger()
-destination = "/mnt/datadisk/source"
+destination = "/git/azuredevops/"
 
 
 def _batch_azuredevops_objects(
@@ -47,15 +44,15 @@ def _batch_azuredevops_objects(
         yield batch
 
 def _convert_code_to_document(
-    repo_id: str, repo_url: str, content_string: str, file_path: str
+    repo_id: str, repo_url: str, repo_name: str, content_string: str, file_path: str
 ) -> Document:
-    # https://dev.azure.com/codat/Codat/_git/Identity?path=/ReadMe.md
+    # https://dev.azure.com/{org}/{project}/_git/{repo}?path=/{path}
     file_url = f"{repo_url}?path={file_path}"
     doc = Document(
         id=f"{repo_id}:{repo_url}:{file_path}",
         sections=[Section(link=file_url, text=content_string)],
         source=DocumentSource.AZUREDEVOPSCODEBASE,
-        semantic_identifier=file_path,
+        semantic_identifier=f"{repo_name}/{file_path}",
         doc_updated_at=datetime.now().replace(tzinfo=timezone.utc),  # Use current time
         primary_owners=[],
         metadata={"type": "CodeFile"},
@@ -67,10 +64,14 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
     def __init__(
         self,
         repo_name: str,
+        project_name: str,
+        branch: str,
+        extensions: List[str],
         batch_size: int = INDEX_BATCH_SIZE,
     ) -> None:
         self.repo_name = repo_name
-        self.batch_size = batch_size
+        self.project_name = project_name
+        self.batch_size = batch_size        
         self.azdo_client: Connection | None = None
 
     def load_credentials(self, credentials: dict[str, Any]) -> dict[str, Any] | None:
@@ -86,7 +87,7 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
         
         # Get code
         git_client = self.azdo_client.clients.get_git_client()
-        repo = git_client.get_repository(project="Codat", repository_id=self.repo_name)
+        repo = git_client.get_repository(project=self.project_name, repository_id=self.repo_name)
 
         os.makedirs(destination, exist_ok=True)
 
@@ -96,15 +97,15 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
         credential_data = f"""
             protocol=https
             host=dev.azure.com
-            username=platform@codat.io
+            username=onyx@azure.com
             password={self.pat}
             """
-
+        organization = self.base_url.split("/")[-1]
         repo_path = f"{destination}/{self.repo_name}"
-        repo_url = f"https://dev.azure.com/codat/Codat/_git/{self.repo_name}"
-        clone_url = f"https://{self.pat}@dev.azure.com/codat/Codat/_git/{self.repo_name}"
+        repo_url = f"{self.base_url}/{self.project_name}/_git/{self.repo_name}"
+        clone_url = f"https://{self.pat}@dev.azure.com/{organization}/{self.project_name}/_git/{self.repo_name}"
         subprocess.run(["git", "credential", "approve"], input=credential_data.encode(), check=True)
-        subprocess.run(["git", "clone", clone_url, repo_path], check=True)
+        subprocess.run(["git", "clone", "--branch", self.branch, clone_url, repo_path], check=True)
 
         file_list = self.get_repo_files_list(repo_path)
         self.process_files(file_list, repo, repo_url, repo_path)
@@ -153,6 +154,7 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
                         self._convert_code_to_document(
                             repo.id,
                             repo_url,
+                            self.repo_name,
                             file_content,
                             item.removeprefix(repo_path),
                         )
@@ -166,6 +168,9 @@ if __name__ == "__main__":
 
     connector = AzureDevopsCodebaseConnector(        
         repo_name=os.environ["REPO_NAME"],
+        project_name=os.environ["PROJECT_NAME"],
+        branch=os.environ["BRANCH"],
+        extensions=os.environ["EXTENSIONS"],
         batch_size=10,
     )
 

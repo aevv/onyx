@@ -235,7 +235,14 @@ export const connectorConfigs: Record<
   },
   azuredevops_codebase: {
     description: "Configure Azure Devops codebase connector",
-    values: [
+    values: [      
+      {
+        type: "text",
+        query: "Enter project name:",
+        label: "Project Name",
+        name: "project_name",
+        optional: false,
+      },
       {
         type: "text",
         query: "Enter repository name:",
@@ -243,6 +250,21 @@ export const connectorConfigs: Record<
         name: "repo_name",
         optional: false,
       },
+      {
+        type: "text",
+        query: "Enter the branch name:",
+        label: "Branch Name",
+        name: "branch_name",
+        optional: false,
+      },
+      {
+        type: "list",
+        query: "Enter file extensions to include:",
+        label: "extensions",
+        name: "extensions",
+        description: "Specify 0 or more file extensions to index. For example, specifying 'md' will cause us to only index files with the '.md' extension. If no extensions are specified, all files in the repository will be indexed.",
+        optional: true,
+      }
     ],
     advanced_values: [],
   },
@@ -1263,6 +1285,9 @@ export interface AzureDevopsManagementConfig {
 
 export interface AzureDevopsCodebaseConfig {
   repo_name: string;
+  project_name: string;
+  branch: string;
+  extensions: string[];
 }
 
 export interface GoogleDriveConfig {

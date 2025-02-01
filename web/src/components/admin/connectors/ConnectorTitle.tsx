@@ -56,6 +56,14 @@ export const ConnectorTitle = ({
       "Repo",
       `${typedConnector.connector_specific_config.repo_name}`
     );
+    additionalMetadata.set(
+      "Project",
+      `${typedConnector.connector_specific_config.project_name}`
+    );
+    additionalMetadata.set(
+      "Branch",
+      `${typedConnector.connector_specific_config.branch}`
+    );
   } else if (connector.source === "confluence") {
     const typedConnector = connector as Connector<ConfluenceConfig>;
     const wikiUrl = typedConnector.connector_specific_config.is_cloud
