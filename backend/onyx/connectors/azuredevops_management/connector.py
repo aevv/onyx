@@ -148,12 +148,12 @@ class AzureDevopsManagementConnector(LoadConnector, PollConnector):
         # Get workitems
         work_item_client = self.azdo_client.clients.get_work_item_tracking_client()
 
-        
+        x = 1 + self.number_days
         
         query = f"""SELECT [System.Id]
           FROM WorkItems 
           WHERE [System.TeamProject] = '{self.project_name}' 
-           AND [System.ChangedDate] > @today - {query_length}
+           AND [System.ChangedDate] > @StartOfDay('-{query_length}d')
            AND [System.State] {query_state} 
           ORDER BY [System.CreatedDate] Desc"""      
         
