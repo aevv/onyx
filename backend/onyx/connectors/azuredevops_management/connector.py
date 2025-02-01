@@ -133,7 +133,7 @@ class AzureDevopsManagementConnector(LoadConnector, PollConnector):
             raise ConnectorMissingCredentialError("AzureDevops")
         
         if start is None and end is None:
-            query_length = int(self.number_days) if self.number_days is not None else 0
+            query_length = self.number_days if self.number_days is not None else "100"
         else:
             query_length = (end - start) / (24 * 60 * 60)
         
@@ -147,6 +147,8 @@ class AzureDevopsManagementConnector(LoadConnector, PollConnector):
 
         # Get workitems
         work_item_client = self.azdo_client.clients.get_work_item_tracking_client()
+
+        
         
         query = f"""SELECT [System.Id]
           FROM WorkItems 
@@ -154,6 +156,8 @@ class AzureDevopsManagementConnector(LoadConnector, PollConnector):
            AND [System.ChangedDate] > @today - {query_length}
            AND [System.State] {query_state} 
           ORDER BY [System.CreatedDate] Desc"""
+        
+        raise(query)
         
         work_items = work_item_client.query_by_wiql(Wiql(query=query))
         work_item_ids = [item.id for item in work_items.work_items]

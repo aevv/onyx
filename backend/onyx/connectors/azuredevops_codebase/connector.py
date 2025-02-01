@@ -147,7 +147,9 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
             result = subprocess.run(["git", "-C", repo_path, "log", f"--since={datetime.fromtimestamp(start)}",
                                       f"--until={datetime.fromtimestamp(end)}", "--name-only", 
                                       "--pretty=format:"], check=True, text=True, capture_output=True)
-            changed_files = set(result.stdout.splitlines())[1:]
+            changed_files = set(result.stdout.splitlines())            
+            changed_files.discard("")
+            
             file_list = [f for f in file_list if f in changed_files]
 
         yield from self.process_files(file_list, repo, repo_url, repo_path)
