@@ -128,8 +128,10 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
         
         organization = self.base_url.split("/")[-1]
         repo_path = f"{destination}/{self.repo_name}"
-        repo_url = f"{self.base_url}/{self.project_name}/_git/{self.repo_name}"
-        clone_url = f"https://{self.pat}@dev.azure.com/{organization}/{self.project_name}/_git/{self.repo_name}"
+        # replace space with %20 in repo name
+        repo_name_safe = self.repo_name.replace(" ", "%20")
+        repo_url = f"{self.base_url}/{self.project_name}/_git/{repo_name_safe}"
+        clone_url = f"https://{self.pat}@dev.azure.com/{organization}/{self.project_name}/_git/{repo_name_safe}"
         first_clone = False
         os.makedirs(destination, exist_ok=True)
 
