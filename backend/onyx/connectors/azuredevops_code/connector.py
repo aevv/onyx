@@ -211,7 +211,7 @@ class AzureDevopsCodeConnector(LoadConnector, PollConnector):
 
         doc_batch = []
         for repo_batch in repo_batch:
-            doc_batch.append(_convert_repo_to_document(repo_batch[0], repo.url, self.repo_name, readme_content))
+            doc_batch.append(_convert_repo_to_document(repo_batch[0].id, repo.url, self.repo_name, readme_content))
         
         yield doc_batch
 
