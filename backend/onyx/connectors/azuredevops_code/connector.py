@@ -43,6 +43,7 @@ def _get_language_from_extension(extension: str) -> str:
         "py": "Python",
         "js": "JavaScript",
         "ts": "TypeScript",
+        "tsx": "TypeScript",
         "cs": "C#",
         "html": "HTML",
         "css": "CSS",
@@ -200,14 +201,19 @@ class AzureDevopsCodeConnector(LoadConnector, PollConnector):
             if code_doc_batch:
                 yield code_doc_batch
 
-    def process_repo(self, repo, readme_path):
+    def process_repo(self, repo, readme_path):        
         readme_content = None
         if readme_path:
             with open(readme_path, "r", encoding="utf-8", errors="ignore") as f:
                 readme_content = f.read()
+
+        repo_batch = _batch_azuredevops_objects([repo], self.batch_size)
+
+        doc_batch = []
+        for repo_batch in repo_batch:
+            doc_batch.append(self._convert_repo_to_document(repo_batch[0], repo.url, self.repo_name, readme_content))
         
-        repo_doc = _convert_repo_to_document(repo.id, repo.url, self.repo_name, readme_content)
-        return [repo_doc]
+        yield doc_batch
 
 if __name__ == "__main__":
     import os
