@@ -47,19 +47,6 @@ export const basicSignup = async (
   email: string,
   password: string,
   referralSource?: string
-) => {
-  const response = await fetch("/api/auth/register", {
-    method: "POST",
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      email,
-      username: email,
-      password,
-      referral_source: referralSource,
-    }),
-  });
-  return response;
+): Promise<Response> => {
+  return new Response(null, { status: 400 });
 };

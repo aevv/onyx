@@ -8,30 +8,7 @@ export default function AnonymousPage({
   anonymousPath: string;
 }) {
   const loginAsAnonymousUser = async () => {
-    try {
-      const response = await fetch(
-        `/api/tenants/anonymous-user?anonymous_user_path=${encodeURIComponent(
-          anonymousPath
-        )}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "same-origin",
-        }
-      );
-
-      if (!response.ok) {
-        console.error("Failed to login as anonymous user", response);
-        throw new Error("Failed to login as anonymous user");
-      }
-      // Redirect to the chat page and force a refresh
-      window.location.href = "/chat";
-    } catch (error) {
-      console.error("Error logging in as anonymous user:", error);
-      redirect("/auth/signup?error=Anonymous");
-    }
+    console.error("Error logging in as anonymous user:");
   };
 
   useEffect(() => {
