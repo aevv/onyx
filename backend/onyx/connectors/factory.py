@@ -23,7 +23,7 @@ from onyx.connectors.freshdesk.connector import FreshdeskConnector
 from onyx.connectors.github.connector import GithubConnector
 from onyx.connectors.gitlab.connector import GitlabConnector
 from onyx.connectors.azuredevops_management.connector import AzureDevopsManagementConnector
-from onyx.connectors.azuredevops_codebase.connector import AzureDevopsCodebaseConnector
+from onyx.connectors.azuredevops_code.connector import AzureDevopsCodeConnector
 from onyx.connectors.gmail.connector import GmailConnector
 from onyx.connectors.gong.connector import GongConnector
 from onyx.connectors.google_drive.connector import GoogleDriveConnector
@@ -74,7 +74,7 @@ def identify_connector_class(
         DocumentSource.GMAIL: GmailConnector,
         DocumentSource.GITLAB: GitlabConnector,
         DocumentSource.AZUREDEVOPSMANAGEMENT: AzureDevopsManagementConnector,
-        DocumentSource.AZUREDEVOPSCODEBASE: AzureDevopsCodebaseConnector,
+        DocumentSource.AZUREDEVOPSCODE: AzureDevopsCodeConnector,
         DocumentSource.GOOGLE_DRIVE: GoogleDriveConnector,
         DocumentSource.BOOKSTACK: BookstackConnector,
         DocumentSource.CONFLUENCE: ConfluenceConnector,

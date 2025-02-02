@@ -117,13 +117,13 @@ export const SOURCE_METADATA_MAP: SourceMap = {
   },
   azuredevops_management: {
     icon: AzureDevopsIcon,
-    displayName: "AzureDevops Management",
+    displayName: "AzureDevops",
     category: SourceCategory.ProjectManagement,
     docs: "https://docs.onyx.app/connectors/azuredevops",
   },
-  azuredevops_codebase: {
+  azuredevops_code: {
     icon: AzureDevopsIcon,
-    displayName: "AzureDevops Codebase",
+    displayName: "AzureDevops",
     category: SourceCategory.CodeRepository,
     docs: "https://docs.onyx.app/connectors/azuredevops",
   },

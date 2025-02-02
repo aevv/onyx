@@ -4,7 +4,7 @@ import {
   GithubConfig,
   GitlabConfig,
   AzureDevopsManagementConfig,
-  AzureDevopsCodebaseConfig,
+  AzureDevopsCodeConfig,
   GoogleDriveConfig,
   JiraConfig,
   SlackConfig,
@@ -50,8 +50,8 @@ export const ConnectorTitle = ({
     );
   } else if (connector.source === "azuredevops_management") {
     const typedConnector = connector as Connector<AzureDevopsManagementConfig>;
-  } else if (connector.source === "azuredevops_codebase") {
-    const typedConnector = connector as Connector<AzureDevopsCodebaseConfig>;
+  } else if (connector.source === "azuredevops_code") {
+    const typedConnector = connector as Connector<AzureDevopsCodeConfig>;
     additionalMetadata.set(
       "Repo",
       `${typedConnector.connector_specific_config.repo_name}`

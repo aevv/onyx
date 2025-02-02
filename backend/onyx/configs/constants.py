@@ -114,7 +114,7 @@ class DocumentSource(str, Enum):
     GITHUB = "github"
     GITLAB = "gitlab"
     AZUREDEVOPSMANAGEMENT = "azuredevops_management"
-    AZUREDEVOPSCODEBASE = "azuredevops_codebase"
+    AZUREDEVOPSCODE = "azuredevops_code"
     GURU = "guru"
     BOOKSTACK = "bookstack"
     CONFLUENCE = "confluence"

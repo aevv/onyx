@@ -1,20 +1,16 @@
-import fnmatch
 import itertools
-from collections import deque
 from collections.abc import Iterable
 from collections.abc import Iterator
 from datetime import datetime
 from datetime import timezone
 from typing import Any
 from typing import List
-import time
 import subprocess 
 import os
+import urllib.parse
 
 from azure.devops.connection import Connection
 from msrest.authentication import BasicAuthentication
-
-import pytz
 
 from onyx.configs.app_configs import INDEX_BATCH_SIZE
 from onyx.configs.constants import DocumentSource
@@ -22,7 +18,6 @@ from onyx.connectors.interfaces import GenerateDocumentsOutput
 from onyx.connectors.interfaces import LoadConnector
 from onyx.connectors.interfaces import PollConnector
 from onyx.connectors.interfaces import SecondsSinceUnixEpoch
-from onyx.connectors.models import BasicExpertInfo
 from onyx.connectors.models import ConnectorMissingCredentialError
 from onyx.connectors.models import Document
 from onyx.connectors.models import Section
@@ -77,7 +72,7 @@ def _convert_code_to_document(
     doc = Document(
         id=f"{repo_id}:{repo_url}:{file_path}",
         sections=[Section(link=file_url, text=content_string)],
-        source=DocumentSource.AZUREDEVOPSCODEBASE,
+        source=DocumentSource.AZUREDEVOPSCODE,
         semantic_identifier=f"{repo_name}/{file_path}",
         doc_updated_at=datetime.now().replace(tzinfo=timezone.utc),  # Use current time
         primary_owners=[],
@@ -85,8 +80,20 @@ def _convert_code_to_document(
     )
     return doc
 
+def _convert_repo_to_document(repo_id: str, repo_url: str, repo_name: str, readme_content: str | None) -> Document:
+    doc = Document(
+        id=f"{repo_id}:{repo_url}",
+        sections=[Section(link=repo_url, text=readme_content or "")],
+        source=DocumentSource.AZUREDEVOPSCODE,
+        semantic_identifier=repo_name,
+        doc_updated_at=datetime.now().replace(tzinfo=timezone.utc),  # Use current time
+        primary_owners=[],
+        metadata={"type": "CodeRepo", "repo": repo_name},
+    )
+    return doc
 
-class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
+
+class AzureDevopsCodeConnector(LoadConnector, PollConnector):
     def __init__(
         self,
         repo_name: str,
@@ -99,7 +106,7 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
         self.project_name = project_name
         self.batch_size = batch_size
         self.branch = branch
-        self.extensions = extensions     
+        self.extensions = [f".{ext.lower()}" if not ext.startswith(".") else ext.lower() for ext in extensions]
         self.azdo_client: Connection | None = None
 
     def load_credentials(self, credentials: dict[str, Any]) -> dict[str, Any] | None:
@@ -128,32 +135,35 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
         
         organization = self.base_url.split("/")[-1]
         repo_path = f"{destination}/{self.repo_name}"
-        # replace space with %20 in repo name
-        repo_name_safe = self.repo_name.replace(" ", "%20")
-        repo_url = f"{self.base_url}/{self.project_name}/_git/{repo_name_safe}"
-        clone_url = f"https://{self.pat}@dev.azure.com/{organization}/{self.project_name}/_git/{repo_name_safe}"
-        first_clone = False
+
+        repo_name_url_encoded = urllib.parse.quote(self.repo_name)
+
+        repo_url = f"{self.base_url}/{self.project_name}/_git/{repo_name_url_encoded}"
+        clone_url = f"https://{self.pat}@dev.azure.com/{organization}/{self.project_name}/_git/{repo_name_url_encoded}"
+
         os.makedirs(destination, exist_ok=True)
 
-        # check if repo exists
         if not os.path.exists(repo_path):        
             subprocess.run(["git", "clone", "--branch", self.branch, clone_url, repo_path], check=True)
-            first_clone = True
         else:
             subprocess.run(["git", "-C", repo_path, "pull"], check=True)
 
         file_list = self.get_repo_files_list(repo_path)
 
         if start > 0.1:
+            # Get all files changed in commits between start <> end, index those only
             result = subprocess.run(["git", "-C", repo_path, "log", f"--since={datetime.fromtimestamp(start)}",
                                       f"--until={datetime.fromtimestamp(end)}", "--name-only", 
                                       "--pretty=format:"], check=True, text=True, capture_output=True)
             changed_files = set(result.stdout.splitlines())            
             changed_files.discard("")
-            logger.info(f"codat: Processing {len(changed_files)} files from {self.repo_name} repository")
 
             file_list = [f for f in file_list if f in changed_files]
-            logger.info(f"codat: Processing {len(file_list)} files from {self.repo_name} repository")
+
+        # get path of readme.me from file_list, if exists - could be parameterised? need to check value of indexing readme with the repo
+        readme_path = next((f for f in file_list if f.lower().endswith("readme.md")), None)
+
+        yield from self.process_repo(repo, readme_path)
 
         yield from self.process_files(file_list, repo, repo_url, repo_path)
 
@@ -189,13 +199,22 @@ class AzureDevopsCodebaseConnector(LoadConnector, PollConnector):
                         )
                     )
             if code_doc_batch:
-                yield code_doc_batch   
+                yield code_doc_batch
+
+    def process_repo(self, repo, readme_path):
+        readme_content = None
+        if readme_path:
+            with open(readme_path, "r", encoding="utf-8", errors="ignore") as f:
+                readme_content = f.read()
+        
+        repo_doc = _convert_repo_to_document(repo.id, repo.url, self.repo_name, readme_content)
+        return [repo_doc]
 
 
 if __name__ == "__main__":
     import os
 
-    connector = AzureDevopsCodebaseConnector(        
+    connector = AzureDevopsCodeConnector(        
         repo_name=os.environ["REPO_NAME"],
         project_name=os.environ["PROJECT_NAME"],
         branch=os.environ["BRANCH"],

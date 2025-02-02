@@ -257,8 +257,8 @@ export const connectorConfigs: Record<
     ],
     advanced_values: [],
   },
-  azuredevops_codebase: {
-    description: "Configure Azure Devops codebase connector",
+  azuredevops_code: {
+    description: "Configure Azure Devops code connector",
     values: [
       {
         type: "text",
@@ -286,7 +286,7 @@ export const connectorConfigs: Record<
         query: "Enter file extensions to include:",
         label: "extensions",
         name: "extensions",
-        description: "Specify 0 or more file extensions to index. For example, specifying 'md' will cause us to only index files with the '.md' extension. If no extensions are specified, all files in the repository will be indexed.",
+        description: "Specify 0 or more file extensions to index. For example, specifying '.md' will cause us to only index files with the '.md' extension. If no extensions are specified, all files in the repository will be indexed.",
         optional: true,
       }
     ],
@@ -1310,7 +1310,7 @@ export interface AzureDevopsManagementConfig {
   state_filter: string;
 }
 
-export interface AzureDevopsCodebaseConfig {
+export interface AzureDevopsCodeConfig {
   repo_name: string;
   project_name: string;
   branch: string;

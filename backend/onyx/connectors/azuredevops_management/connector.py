@@ -1,6 +1,4 @@
-import fnmatch
 import itertools
-from collections import deque
 from collections.abc import Iterable
 from collections.abc import Iterator
 from datetime import datetime
@@ -16,8 +14,6 @@ from msrest.authentication import BasicAuthentication
 from azure.devops.v7_1.work_item_tracking.models import WorkItem
 from azure.devops.v7_1.work_item_tracking.models import Wiql
 
-import pytz
-
 from onyx.configs.app_configs import INDEX_BATCH_SIZE
 from onyx.configs.constants import DocumentSource
 from onyx.connectors.interfaces import GenerateDocumentsOutput
@@ -30,9 +26,7 @@ from onyx.connectors.models import Document
 from onyx.connectors.models import Section
 from onyx.utils.logger import setup_logger
 
-
 logger = setup_logger()
-
 
 def _batch_azuredevops_objects(
     git_objs: Iterable[Any], batch_size: int
@@ -61,8 +55,7 @@ def format_date(date: str) -> datetime:
 
 def _convert_workitem_to_document(work_item: WorkItem, base_url) -> Document:
     work_item_url = f"{base_url}/_workItems/edit/{work_item.id}"
-    changed_date = format_date(work_item.fields.get("System.ChangedDate"))
-    currently_assigned = None
+    changed_date = format_date(work_item.fields.get("System.ChangedDate"))    
 
     metadata = {}
     state = work_item.fields.get("System.State")
@@ -101,7 +94,7 @@ def _convert_workitem_to_document(work_item: WorkItem, base_url) -> Document:
             Section(link=work_item_url, text=work_item.fields.get("Microsoft.VSTS.Common.AcceptanceCriteria") or ""),
             ],
         source=DocumentSource.AZUREDEVOPSMANAGEMENT,
-        semantic_identifier=f"AZDOWorkItem:{work_item.id}",
+        semantic_identifier=f"{work_item.id}: {work_item.fields.get('System.Title')}",
         doc_updated_at=changed_date.replace(tzinfo=timezone.utc),
         primary_owners=[get_author(work_item.fields.get("System.CreatedBy")["displayName"])],
         metadata=metadata,
@@ -176,7 +169,6 @@ class AzureDevopsManagementConnector(LoadConnector, PollConnector):
 
     def poll_source(self, start: SecondsSinceUnixEpoch, end: SecondsSinceUnixEpoch) -> GenerateDocumentsOutput:
         return self._fetch_from_azuredevops(start=start, end=end)
-
 
 if __name__ == "__main__":
     import os

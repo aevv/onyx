@@ -20,7 +20,7 @@ def source_to_github_img_link(source: DocumentSource) -> str | None:
     if source == DocumentSource.GITLAB.value:
         return "https://raw.githubusercontent.com/onyx-dot-app/onyx/main/web/public/Gitlab.png"
     if source == DocumentSource.AZUREDEVOPS.value:
-        return "https://cdn.prod.website-files.com/655b60964be1a1b36c746790/655b60964be1a1b36c746d28_62f25e0037dc73b07553db89_62e129061449c93a6a2041c0_azur%252520(2).png"
+        return "https://raw.githubusercontent.com/aevv/onyx/main/web/public/AzureDevOps.png"
     if source == DocumentSource.CONFLUENCE.value:
         return "https://raw.githubusercontent.com/onyx-dot-app/onyx/main/backend/slackbot_images/Confluence.png"
     if source == DocumentSource.JIRA.value:
