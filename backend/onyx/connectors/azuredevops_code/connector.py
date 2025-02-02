@@ -73,7 +73,7 @@ def _convert_code_to_document(
         id=f"{repo_id}:{repo_url}:{file_path}",
         sections=[Section(link=file_url, text=content_string)],
         source=DocumentSource.AZUREDEVOPSCODE,
-        semantic_identifier=f"{repo_name}/{file_path}",
+        semantic_identifier=f"{repo_name}{file_path}", # File path starts with a /, so no need to add a separator  
         doc_updated_at=datetime.now().replace(tzinfo=timezone.utc),  # Use current time
         primary_owners=[],
         metadata={"type": "CodeFile", "language": language, "repo": repo_name},
@@ -91,7 +91,6 @@ def _convert_repo_to_document(repo_id: str, repo_url: str, repo_name: str, readm
         metadata={"type": "CodeRepo", "repo": repo_name},
     )
     return doc
-
 
 class AzureDevopsCodeConnector(LoadConnector, PollConnector):
     def __init__(
@@ -209,7 +208,6 @@ class AzureDevopsCodeConnector(LoadConnector, PollConnector):
         
         repo_doc = _convert_repo_to_document(repo.id, repo.url, self.repo_name, readme_content)
         return [repo_doc]
-
 
 if __name__ == "__main__":
     import os
