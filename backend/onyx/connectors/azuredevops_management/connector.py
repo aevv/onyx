@@ -85,6 +85,10 @@ def _convert_workitem_to_document(work_item: WorkItem, base_url) -> Document:
     assigned_to = work_item.fields.get("System.AssignedTo")
     if assigned_to is not None:        
         metadata["assigned_to"] = assigned_to["displayName"]
+
+    title = work_item.fields.get("System.Title")
+    if title is not None:
+        metadata["title"] = title
     
     doc = Document(
         id=work_item_url,
@@ -94,7 +98,7 @@ def _convert_workitem_to_document(work_item: WorkItem, base_url) -> Document:
             Section(link=work_item_url, text=work_item.fields.get("Microsoft.VSTS.Common.AcceptanceCriteria") or ""),
             ],
         source=DocumentSource.AZUREDEVOPSMANAGEMENT,
-        semantic_identifier=f"{work_item.id}: {work_item.fields.get('System.Title')}",
+        semantic_identifier=f"{work_item.id}: {title}",
         doc_updated_at=changed_date.replace(tzinfo=timezone.utc),
         primary_owners=[get_author(work_item.fields.get("System.CreatedBy")["displayName"])],
         metadata=metadata,
