@@ -31,23 +31,23 @@ PUBLIC_ENDPOINT_SPECS = [
     # just gets the version of Onyx (e.g. 0.3.11)
     ("/version", {"GET"}),
     # stuff related to basic auth
-    #("/auth/register", {"POST"}),
+    ("/auth/register", {"POST"}),
     ("/auth/login", {"POST"}),
     ("/auth/logout", {"POST"}),
-    #("/auth/forgot-password", {"POST"}),
-    #("/auth/reset-password", {"POST"}),
-    #("/auth/request-verify-token", {"POST"}),
-    #("/auth/verify", {"POST"}),
+    ("/auth/forgot-password", {"POST"}),
+    ("/auth/reset-password", {"POST"}),
+    ("/auth/request-verify-token", {"POST"}),
+    ("/auth/verify", {"POST"}),
     ("/users/me", {"GET"}),
     ("/users/me", {"PATCH"}),
     ("/users/{id}", {"GET"}),
     ("/users/{id}", {"PATCH"}),
     ("/users/{id}", {"DELETE"}),
     # oauth
-    #("/auth/oauth/authorize", {"GET"}),
-    #("/auth/oauth/callback", {"GET"}),
+    ("/auth/oauth/authorize", {"GET"}),
+    ("/auth/oauth/callback", {"GET"}),
     # anonymous user on cloud
-    #("/tenants/anonymous-user", {"POST"}),
+    ("/tenants/anonymous-user", {"POST"}),
 ]
 
 
