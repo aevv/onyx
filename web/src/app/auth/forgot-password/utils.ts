@@ -18,6 +18,16 @@ export const forgotPassword = async (email: string): Promise<void> => {
 export const resetPassword = async (
   token: string,
   password: string
-): Promise<Response> => {
-  return new Response(null, { status: 400 });
+): Promise<void> => {
+  const response = await fetch(`/api/auth/reset-password`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ token, password }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to reset password");
+  }
 };
