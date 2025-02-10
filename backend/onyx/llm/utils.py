@@ -345,6 +345,7 @@ def test_llm(llm: LLM) -> str | None:
             return None
         except Exception as e:
             error_msg = str(e)
+            logger.warning(llm.config)
             logger.warning(f"Failed to call LLM with the following error: {error_msg}")
 
     return error_msg
