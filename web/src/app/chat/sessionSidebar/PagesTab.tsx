@@ -318,11 +318,11 @@ export function PagesTab({
     <div className="flex flex-col gap-y-2 flex-grow">
       {popup}
       <div className="px-4 mt-2 group mr-2 bg-background-sidebar z-20">
-        <div className="flex justify-between text-sm gap-x-2 text-[#6c6c6c]/80 items-center font-normal leading-normal">
+        <div className="flex justify-between text-sm gap-x-2 text-text-300/80 items-center font-normal leading-normal">
           <p>Chats</p>
           <button
             onClick={handleCreateFolder}
-            className="flex group-hover:opacity-100 opacity-0 transition duration-200 cursor-pointer gap-x-1 items-center text-black text-xs font-medium font-['KH Teka TRIAL'] leading-normal"
+            className="flex group-hover:opacity-100 opacity-0 transition duration-200 cursor-pointer gap-x-1 items-center text-black text-xs font-medium leading-normal"
           >
             <FiPlus size={12} className="flex-none" />
             Create Group
@@ -332,7 +332,7 @@ export function PagesTab({
 
       {isCreatingFolder ? (
         <div className="px-4">
-          <div className="flex  overflow-visible items-center w-full text-[#6c6c6c] rounded-md p-1 relative">
+          <div className="flex  overflow-visible items-center w-full text-text-500 rounded-md p-1 relative">
             <Caret size={16} className="flex-none mr-1" />
             <input
               onKeyDown={(e) => {
@@ -343,7 +343,7 @@ export function PagesTab({
               ref={newFolderInputRef}
               type="text"
               placeholder="Enter group name"
-              className="text-sm font-medium bg-transparent outline-none w-full pb-1 border-b border-[#6c6c6c] transition-colors duration-200"
+              className="text-sm font-medium bg-transparent outline-none w-full pb-1 border-b border-background-500 transition-colors duration-200"
             />
             <div className="flex -my-1">
               <div

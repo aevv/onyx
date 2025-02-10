@@ -1,12 +1,16 @@
+import time
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
+from typing import Any
+from typing import cast
 from uuid import uuid4
 
 from celery import Celery
 from celery import shared_task
 from celery import Task
 from celery.exceptions import SoftTimeLimitExceeded
+from pydantic import ValidationError
 from redis import Redis
 from redis.lock import Lock as RedisLock
 
@@ -20,14 +24,19 @@ from ee.onyx.external_permissions.sync_params import (
     GROUP_PERMISSIONS_IS_CC_PAIR_AGNOSTIC,
 )
 from onyx.background.celery.apps.app_base import task_logger
+from onyx.background.celery.celery_redis import celery_find_task
+from onyx.background.celery.celery_redis import celery_get_unacked_task_ids
 from onyx.configs.app_configs import JOB_TIMEOUT
 from onyx.configs.constants import CELERY_EXTERNAL_GROUP_SYNC_LOCK_TIMEOUT
 from onyx.configs.constants import CELERY_GENERIC_BEAT_LOCK_TIMEOUT
+from onyx.configs.constants import CELERY_TASK_WAIT_FOR_FENCE_TIMEOUT
 from onyx.configs.constants import DANSWER_REDIS_FUNCTION_LOCK_PREFIX
 from onyx.configs.constants import OnyxCeleryPriority
 from onyx.configs.constants import OnyxCeleryQueues
 from onyx.configs.constants import OnyxCeleryTask
+from onyx.configs.constants import OnyxRedisConstants
 from onyx.configs.constants import OnyxRedisLocks
+from onyx.configs.constants import OnyxRedisSignals
 from onyx.db.connector import mark_cc_pair_as_external_group_synced
 from onyx.db.connector_credential_pair import get_connector_credential_pair_from_id
 from onyx.db.engine import get_session_with_tenant
@@ -39,10 +48,13 @@ from onyx.db.models import ConnectorCredentialPair
 from onyx.db.sync_record import insert_sync_record
 from onyx.db.sync_record import update_sync_record_status
 from onyx.redis.redis_connector import RedisConnector
+from onyx.redis.redis_connector_ext_group_sync import RedisConnectorExternalGroupSync
 from onyx.redis.redis_connector_ext_group_sync import (
     RedisConnectorExternalGroupSyncPayload,
 )
 from onyx.redis.redis_pool import get_redis_client
+from onyx.redis.redis_pool import get_redis_replica_client
+from onyx.server.utils import make_short_id
 from onyx.utils.logger import setup_logger
 
 logger = setup_logger()
@@ -100,7 +112,11 @@ def _is_external_group_sync_due(cc_pair: ConnectorCredentialPair) -> bool:
     bind=True,
 )
 def check_for_external_group_sync(self: Task, *, tenant_id: str | None) -> bool | None:
+    # we need to use celery's redis client to access its redis data
+    # (which lives on a different db number)
     r = get_redis_client(tenant_id=tenant_id)
+    r_replica = get_redis_replica_client(tenant_id=tenant_id)
+    r_celery: Redis = self.app.broker_connection().channel().client  # type: ignore
 
     lock_beat: RedisLock = r.lock(
         OnyxRedisLocks.CHECK_CONNECTOR_EXTERNAL_GROUP_SYNC_BEAT_LOCK,
@@ -136,14 +152,34 @@ def check_for_external_group_sync(self: Task, *, tenant_id: str | None) -> bool 
                 if _is_external_group_sync_due(cc_pair):
                     cc_pair_ids_to_sync.append(cc_pair.id)
 
+        lock_beat.reacquire()
         for cc_pair_id in cc_pair_ids_to_sync:
-            tasks_created = try_creating_external_group_sync_task(
+            payload_id = try_creating_external_group_sync_task(
                 self.app, cc_pair_id, r, tenant_id
             )
-            if not tasks_created:
+            if not payload_id:
                 continue
 
-            task_logger.info(f"External group sync queued: cc_pair={cc_pair_id}")
+            task_logger.info(
+                f"External group sync queued: cc_pair={cc_pair_id} id={payload_id}"
+            )
+
+        # we want to run this less frequently than the overall task
+        lock_beat.reacquire()
+        if not r.exists(OnyxRedisSignals.BLOCK_VALIDATE_EXTERNAL_GROUP_SYNC_FENCES):
+            # clear fences that don't have associated celery tasks in progress
+            # tasks can be in the queue in redis, in reserved tasks (prefetched by the worker),
+            # or be currently executing
+            try:
+                validate_external_group_sync_fences(
+                    tenant_id, self.app, r, r_replica, r_celery, lock_beat
+                )
+            except Exception:
+                task_logger.exception(
+                    "Exception while validating external group sync fences"
+                )
+
+            r.set(OnyxRedisSignals.BLOCK_VALIDATE_EXTERNAL_GROUP_SYNC_FENCES, 1, ex=300)
     except SoftTimeLimitExceeded:
         task_logger.info(
             "Soft time limit exceeded, task is being terminated gracefully."
@@ -162,9 +198,11 @@ def try_creating_external_group_sync_task(
     cc_pair_id: int,
     r: Redis,
     tenant_id: str | None,
-) -> int | None:
+) -> str | None:
     """Returns an int if syncing is needed. The int represents the number of sync tasks generated.
     Returns None if no syncing is required."""
+    payload_id: str | None = None
+
     redis_connector = RedisConnector(tenant_id, cc_pair_id)
 
     LOCK_TIMEOUT = 30
@@ -186,6 +224,29 @@ def try_creating_external_group_sync_task(
         redis_connector.external_group_sync.generator_clear()
         redis_connector.external_group_sync.taskset_clear()
 
+        # create before setting fence to avoid race condition where the monitoring
+        # task updates the sync record before it is created
+        try:
+            with get_session_with_tenant(tenant_id) as db_session:
+                insert_sync_record(
+                    db_session=db_session,
+                    entity_id=cc_pair_id,
+                    sync_type=SyncType.EXTERNAL_GROUP,
+                )
+        except Exception:
+            task_logger.exception("insert_sync_record exceptioned.")
+
+        # Signal active before creating fence
+        redis_connector.external_group_sync.set_active()
+
+        payload = RedisConnectorExternalGroupSyncPayload(
+            id=make_short_id(),
+            submitted=datetime.now(timezone.utc),
+            started=None,
+            celery_task_id=None,
+        )
+        redis_connector.external_group_sync.set_fence(payload)
+
         custom_task_id = f"{redis_connector.external_group_sync.taskset_key}_{uuid4()}"
 
         result = app.send_task(
@@ -199,22 +260,10 @@ def try_creating_external_group_sync_task(
             priority=OnyxCeleryPriority.HIGH,
         )
 
-        payload = RedisConnectorExternalGroupSyncPayload(
-            started=datetime.now(timezone.utc),
-            celery_task_id=result.id,
-        )
-
-        # create before setting fence to avoid race condition where the monitoring
-        # task updates the sync record before it is created
-        with get_session_with_tenant(tenant_id) as db_session:
-            insert_sync_record(
-                db_session=db_session,
-                entity_id=cc_pair_id,
-                sync_type=SyncType.EXTERNAL_GROUP,
-            )
-
+        payload.celery_task_id = result.id
         redis_connector.external_group_sync.set_fence(payload)
 
+        payload_id = payload.id
     except Exception:
         task_logger.exception(
             f"Unexpected exception while trying to create external group sync task: cc_pair={cc_pair_id}"
@@ -224,7 +273,7 @@ def try_creating_external_group_sync_task(
         if lock.owned():
             lock.release()
 
-    return 1
+    return payload_id
 
 
 @shared_task(
@@ -241,7 +290,7 @@ def connector_external_group_sync_generator_task(
     tenant_id: str | None,
 ) -> None:
     """
-    Permission sync task that handles external group syncing for a given connector credential pair
+    External group sync task for a given connector credential pair
     This task assumes that the task has already been properly fenced
     """
 
@@ -249,19 +298,60 @@ def connector_external_group_sync_generator_task(
 
     r = get_redis_client(tenant_id=tenant_id)
 
+    # this wait is needed to avoid a race condition where
+    # the primary worker sends the task and it is immediately executed
+    # before the primary worker can finalize the fence
+    start = time.monotonic()
+    while True:
+        if time.monotonic() - start > CELERY_TASK_WAIT_FOR_FENCE_TIMEOUT:
+            raise ValueError(
+                f"connector_external_group_sync_generator_task - timed out waiting for fence to be ready: "
+                f"fence={redis_connector.external_group_sync.fence_key}"
+            )
+
+        if not redis_connector.external_group_sync.fenced:  # The fence must exist
+            raise ValueError(
+                f"connector_external_group_sync_generator_task - fence not found: "
+                f"fence={redis_connector.external_group_sync.fence_key}"
+            )
+
+        payload = redis_connector.external_group_sync.payload  # The payload must exist
+        if not payload:
+            raise ValueError(
+                "connector_external_group_sync_generator_task: payload invalid or not found"
+            )
+
+        if payload.celery_task_id is None:
+            logger.info(
+                f"connector_external_group_sync_generator_task - Waiting for fence: "
+                f"fence={redis_connector.external_group_sync.fence_key}"
+            )
+            time.sleep(1)
+            continue
+
+        logger.info(
+            f"connector_external_group_sync_generator_task - Fence found, continuing...: "
+            f"fence={redis_connector.external_group_sync.fence_key} "
+            f"payload_id={payload.id}"
+        )
+        break
+
     lock: RedisLock = r.lock(
         OnyxRedisLocks.CONNECTOR_EXTERNAL_GROUP_SYNC_LOCK_PREFIX
         + f"_{redis_connector.id}",
         timeout=CELERY_EXTERNAL_GROUP_SYNC_LOCK_TIMEOUT,
     )
 
+    acquired = lock.acquire(blocking=False)
+    if not acquired:
+        task_logger.warning(
+            f"External group sync task already running, exiting...: cc_pair={cc_pair_id}"
+        )
+        return None
+
     try:
-        acquired = lock.acquire(blocking=False)
-        if not acquired:
-            task_logger.warning(
-                f"External group sync task already running, exiting...: cc_pair={cc_pair_id}"
-            )
-            return None
+        payload.started = datetime.now(timezone.utc)
+        redis_connector.external_group_sync.set_fence(payload)
 
         with get_session_with_tenant(tenant_id) as db_session:
             cc_pair = get_connector_credential_pair_from_id(
@@ -311,7 +401,7 @@ def connector_external_group_sync_generator_task(
             )
     except Exception as e:
         task_logger.exception(
-            f"Failed to run external group sync: cc_pair={cc_pair_id}"
+            f"External group sync exceptioned: cc_pair={cc_pair_id} payload_id={payload.id}"
         )
 
         with get_session_with_tenant(tenant_id) as db_session:
@@ -330,3 +420,144 @@ def connector_external_group_sync_generator_task(
         redis_connector.external_group_sync.set_fence(None)
         if lock.owned():
             lock.release()
+
+    task_logger.info(
+        f"External group sync finished: cc_pair={cc_pair_id} payload_id={payload.id}"
+    )
+
+
+def validate_external_group_sync_fences(
+    tenant_id: str | None,
+    celery_app: Celery,
+    r: Redis,
+    r_replica: Redis,
+    r_celery: Redis,
+    lock_beat: RedisLock,
+) -> None:
+    reserved_tasks = celery_get_unacked_task_ids(
+        OnyxCeleryQueues.CONNECTOR_EXTERNAL_GROUP_SYNC, r_celery
+    )
+
+    # validate all existing external group sync tasks
+    lock_beat.reacquire()
+    keys = cast(set[Any], r_replica.smembers(OnyxRedisConstants.ACTIVE_FENCES))
+    for key in keys:
+        key_bytes = cast(bytes, key)
+        key_str = key_bytes.decode("utf-8")
+        if not key_str.startswith(RedisConnectorExternalGroupSync.FENCE_PREFIX):
+            continue
+
+        validate_external_group_sync_fence(
+            tenant_id,
+            key_bytes,
+            reserved_tasks,
+            r_celery,
+        )
+
+        lock_beat.reacquire()
+
+    return
+
+
+def validate_external_group_sync_fence(
+    tenant_id: str | None,
+    key_bytes: bytes,
+    reserved_tasks: set[str],
+    r_celery: Redis,
+) -> None:
+    """Checks for the error condition where an indexing fence is set but the associated celery tasks don't exist.
+    This can happen if the indexing worker hard crashes or is terminated.
+    Being in this bad state means the fence will never clear without help, so this function
+    gives the help.
+
+    How this works:
+    1. This function renews the active signal with a 5 minute TTL under the following conditions
+    1.2. When the task is seen in the redis queue
+    1.3. When the task is seen in the reserved / prefetched list
+
+    2. Externally, the active signal is renewed when:
+    2.1. The fence is created
+    2.2. The indexing watchdog checks the spawned task.
+
+    3. The TTL allows us to get through the transitions on fence startup
+    and when the task starts executing.
+
+    More TTL clarification: it is seemingly impossible to exactly query Celery for
+    whether a task is in the queue or currently executing.
+    1. An unknown task id is always returned as state PENDING.
+    2. Redis can be inspected for the task id, but the task id is gone between the time a worker receives the task
+    and the time it actually starts on the worker.
+    """
+    # if the fence doesn't exist, there's nothing to do
+    fence_key = key_bytes.decode("utf-8")
+    cc_pair_id_str = RedisConnector.get_id_from_fence_key(fence_key)
+    if cc_pair_id_str is None:
+        task_logger.warning(
+            f"validate_external_group_sync_fence - could not parse id from {fence_key}"
+        )
+        return
+
+    cc_pair_id = int(cc_pair_id_str)
+
+    # parse out metadata and initialize the helper class with it
+    redis_connector = RedisConnector(tenant_id, int(cc_pair_id))
+
+    # check to see if the fence/payload exists
+    if not redis_connector.external_group_sync.fenced:
+        return
+
+    try:
+        payload = redis_connector.external_group_sync.payload
+    except ValidationError:
+        task_logger.exception(
+            "validate_external_group_sync_fence - "
+            "Resetting fence because fence schema is out of date: "
+            f"cc_pair={cc_pair_id} "
+            f"fence={fence_key}"
+        )
+
+        redis_connector.external_group_sync.reset()
+        return
+
+    if not payload:
+        return
+
+    if not payload.celery_task_id:
+        return
+
+    # OK, there's actually something for us to validate
+    found = celery_find_task(
+        payload.celery_task_id, OnyxCeleryQueues.CONNECTOR_EXTERNAL_GROUP_SYNC, r_celery
+    )
+    if found:
+        # the celery task exists in the redis queue
+        # redis_connector_index.set_active()
+        return
+
+    if payload.celery_task_id in reserved_tasks:
+        # the celery task was prefetched and is reserved within the indexing worker
+        # redis_connector_index.set_active()
+        return
+
+    # we may want to enable this check if using the active task list somehow isn't good enough
+    # if redis_connector_index.generator_locked():
+    #     logger.info(f"{payload.celery_task_id} is currently executing.")
+
+    # if we get here, we didn't find any direct indication that the associated celery tasks exist,
+    # but they still might be there due to gaps in our ability to check states during transitions
+    # Checking the active signal safeguards us against these transition periods
+    # (which has a duration that allows us to bridge those gaps)
+    # if redis_connector_index.active():
+    # return
+
+    # celery tasks don't exist and the active signal has expired, possibly due to a crash. Clean it up.
+    logger.warning(
+        "validate_external_group_sync_fence - "
+        "Resetting fence because no associated celery tasks were found: "
+        f"cc_pair={cc_pair_id} "
+        f"fence={fence_key} "
+        f"payload_id={payload.id}"
+    )
+
+    redis_connector.external_group_sync.reset()
+    return

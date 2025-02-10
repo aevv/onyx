@@ -10,6 +10,7 @@ from onyx.connectors.google_utils.resources import get_drive_service
 from onyx.connectors.interfaces import GenerateSlimDocumentOutput
 from onyx.connectors.models import SlimDocument
 from onyx.db.models import ConnectorCredentialPair
+from onyx.indexing.indexing_heartbeat import IndexingHeartbeatInterface
 from onyx.utils.logger import setup_logger
 
 logger = setup_logger()
@@ -20,6 +21,7 @@ _PERMISSION_ID_PERMISSION_MAP: dict[str, dict[str, Any]] = {}
 def _get_slim_doc_generator(
     cc_pair: ConnectorCredentialPair,
     google_drive_connector: GoogleDriveConnector,
+    callback: IndexingHeartbeatInterface | None = None,
 ) -> GenerateSlimDocumentOutput:
     current_time = datetime.now(timezone.utc)
     start_time = (
@@ -29,7 +31,9 @@ def _get_slim_doc_generator(
     )
 
     return google_drive_connector.retrieve_all_slim_documents(
-        start=start_time, end=current_time.timestamp()
+        start=start_time,
+        end=current_time.timestamp(),
+        callback=callback,
     )
 
 
@@ -128,7 +132,7 @@ def _get_permissions_from_slim_doc(
 
 
 def gdrive_doc_sync(
-    cc_pair: ConnectorCredentialPair,
+    cc_pair: ConnectorCredentialPair, callback: IndexingHeartbeatInterface | None
 ) -> list[DocExternalAccess]:
     """
     Adds the external permissions to the documents in postgres
@@ -146,6 +150,12 @@ def gdrive_doc_sync(
     document_external_accesses = []
     for slim_doc_batch in slim_doc_generator:
         for slim_doc in slim_doc_batch:
+            if callback:
+                if callback.should_stop():
+                    raise RuntimeError("gdrive_doc_sync: Stop signal detected")
+
+                callback.progress("gdrive_doc_sync", 1)
+
             ext_access = _get_permissions_from_slim_doc(
                 google_drive_connector=google_drive_connector,
                 slim_doc=slim_doc,

@@ -39,6 +39,7 @@ from onyx.redis.redis_pool import get_redis_client
 from onyx.redis.redis_pool import redis_lock_dump
 from onyx.utils.telemetry import optional_telemetry
 from onyx.utils.telemetry import RecordType
+from shared_configs.contextvars import CURRENT_TENANT_ID_CONTEXTVAR
 
 
 _MONITORING_SOFT_TIME_LIMIT = 60 * 5  # 5 minutes
@@ -657,6 +658,9 @@ def monitor_background_processes(self: Task, *, tenant_id: str | None) -> None:
     - Syncing speed metrics
     - Worker status and task counts
     """
+    if tenant_id is not None:
+        CURRENT_TENANT_ID_CONTEXTVAR.set(tenant_id)
+
     task_logger.info("Starting background monitoring")
     r = get_redis_client(tenant_id=tenant_id)
 
@@ -688,11 +692,13 @@ def monitor_background_processes(self: Task, *, tenant_id: str | None) -> None:
                 metrics = metric_fn()
                 for metric in metrics:
                     # double check to make sure we aren't double-emitting metrics
-                    if metric.key is not None and not _has_metric_been_emitted(
+                    if metric.key is None or not _has_metric_been_emitted(
                         redis_std, metric.key
                     ):
                         metric.log()
                         metric.emit(tenant_id)
+
+                    if metric.key is not None:
                         _mark_metric_as_emitted(redis_std, metric.key)
 
         task_logger.info("Successfully collected background metrics")
@@ -722,6 +728,10 @@ def cloud_check_alembic() -> bool | None:
     TODO: have the cloud migration script set an activity signal that this check
     uses to know it doesn't make sense to run a check at the present time.
     """
+
+    # Used as a placeholder if the alembic revision cannot be retrieved
+    ALEMBIC_NULL_REVISION = "000000000000"
+
     time_start = time.monotonic()
 
     redis_client = get_redis_client(tenant_id=ONYX_CLOUD_TENANT_ID)
@@ -737,13 +747,14 @@ def cloud_check_alembic() -> bool | None:
 
     last_lock_time = time.monotonic()
 
-    tenant_to_revision: dict[str, str | None] = {}
+    tenant_to_revision: dict[str, str] = {}
     revision_counts: dict[str, int] = {}
-    out_of_date_tenants: dict[str, str | None] = {}
+    out_of_date_tenants: dict[str, str] = {}
     top_revision: str = ""
+    tenant_ids: list[str] | list[None] = []
 
     try:
-        # map each tenant_id to its revision
+        # map tenant_id to revision (or ALEMBIC_NULL_REVISION if the query fails)
         tenant_ids = get_all_tenant_ids()
         for tenant_id in tenant_ids:
             current_time = time.monotonic()
@@ -755,19 +766,28 @@ def cloud_check_alembic() -> bool | None:
                 continue
 
             with get_session_with_tenant(tenant_id=None) as session:
-                result = session.execute(
-                    text(f'SELECT * FROM "{tenant_id}".alembic_version LIMIT 1')
-                )
+                try:
+                    result = session.execute(
+                        text(f'SELECT * FROM "{tenant_id}".alembic_version LIMIT 1')
+                    )
 
-                result_scalar: str | None = result.scalar_one_or_none()
-                tenant_to_revision[tenant_id] = result_scalar
+                    result_scalar: str | None = result.scalar_one_or_none()
+                    if result_scalar is None:
+                        raise ValueError("Alembic version should not be None.")
+
+                    tenant_to_revision[tenant_id] = result_scalar
+                except Exception:
+                    task_logger.warning(f"Tenant {tenant_id} has no revision!")
+                    tenant_to_revision[tenant_id] = ALEMBIC_NULL_REVISION
 
         # get the total count of each revision
         for k, v in tenant_to_revision.items():
-            if v is None:
-                continue
-
             revision_counts[v] = revision_counts.get(v, 0) + 1
+
+        # error if any null revision tenants are found
+        if ALEMBIC_NULL_REVISION in revision_counts:
+            num_null_revisions = revision_counts[ALEMBIC_NULL_REVISION]
+            raise ValueError(f"No revision was found for {num_null_revisions} tenants!")
 
         # get the revision with the most counts
         sorted_revision_counts = sorted(
@@ -775,23 +795,24 @@ def cloud_check_alembic() -> bool | None:
         )
 
         if len(sorted_revision_counts) == 0:
-            task_logger.error(
+            raise ValueError(
                 f"cloud_check_alembic - No revisions found for {len(tenant_ids)} tenant ids!"
             )
-        else:
-            top_revision, _ = sorted_revision_counts[0]
 
-            # build a list of out of date tenants
-            for k, v in tenant_to_revision.items():
-                if v == top_revision:
-                    continue
+        top_revision, _ = sorted_revision_counts[0]
 
-                out_of_date_tenants[k] = v
+        # build a list of out of date tenants
+        for k, v in tenant_to_revision.items():
+            if v == top_revision:
+                continue
+
+            out_of_date_tenants[k] = v
 
     except SoftTimeLimitExceeded:
         task_logger.info(
             "Soft time limit exceeded, task is being terminated gracefully."
         )
+        raise
     except Exception:
         task_logger.exception("Unexpected exception during cloud alembic check")
         raise
@@ -808,6 +829,11 @@ def cloud_check_alembic() -> bool | None:
             f"num_out_of_date_tenants={len(out_of_date_tenants)} "
             f"num_tenants={len(tenant_ids)} "
             f"revision={top_revision}"
+        )
+
+        num_to_log = min(5, len(out_of_date_tenants))
+        task_logger.info(
+            f"Logging {num_to_log}/{len(out_of_date_tenants)} out of date tenants."
         )
         for k, v in islice(out_of_date_tenants.items(), 5):
             task_logger.info(f"Out of date tenant: tenant={k} revision={v}")

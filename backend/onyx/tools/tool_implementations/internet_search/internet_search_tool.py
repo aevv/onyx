@@ -218,6 +218,9 @@ class InternetSearchTool(Tool):
             headers=self.headers,
             params={"q": query, "count": self.num_results},
         )
+
+        response.raise_for_status()
+
         results = response.json()
 
         # If no hits, Bing does not include the webPages key
@@ -276,4 +279,5 @@ class InternetSearchTool(Tool):
             using_tool_calling_llm=using_tool_calling_llm,
             answer_style_config=self.answer_style_config,
             prompt_config=self.prompt_config,
+            context_type="internet search results",
         )

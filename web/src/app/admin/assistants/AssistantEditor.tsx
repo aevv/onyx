@@ -40,7 +40,12 @@ import * as Yup from "yup";
 import CollapsibleSection from "./CollapsibleSection";
 import { SuccessfulPersonaUpdateRedirectType } from "./enums";
 import { Persona, PersonaLabel, StarterMessage } from "./interfaces";
-import { PersonaUpsertParameters, createPersona, updatePersona } from "./lib";
+import {
+  PersonaUpsertParameters,
+  createPersona,
+  updatePersona,
+  deletePersona,
+} from "./lib";
 import {
   CameraIcon,
   GroupsIconSkeleton,
@@ -71,7 +76,6 @@ import { LLMSelector } from "@/components/llm/LLMSelector";
 import useSWR from "swr";
 import { errorHandlingFetcher } from "@/lib/fetcher";
 import { DeleteEntityModal } from "@/components/modals/DeleteEntityModal";
-import { DeletePersonaButton } from "./[id]/DeletePersonaButton";
 import Title from "@/components/ui/title";
 import { SEARCH_TOOL_ID } from "@/app/chat/tools/constants";
 
@@ -304,7 +308,7 @@ export function AssistantEditor({
   const [isRequestSuccessful, setIsRequestSuccessful] = useState(false);
 
   const { data: userGroups } = useUserGroups();
-  // const { data: allUsers } = useUsers() as {
+  // const { data: allUsers } = useUsers({ includeApiKeys: false }) as {
   //   data: MinimalUserSnapshot[] | undefined;
   // };
 
@@ -322,9 +326,38 @@ export function AssistantEditor({
     }));
   };
 
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+
   if (!labels) {
     return <></>;
   }
+
+  const openDeleteModal = () => {
+    setDeleteModalOpen(true);
+  };
+
+  const closeDeleteModal = () => {
+    setDeleteModalOpen(false);
+  };
+
+  const handleDeletePersona = async () => {
+    if (existingPersona) {
+      const response = await deletePersona(existingPersona.id);
+      if (response.ok) {
+        await refreshAssistants();
+        router.push(
+          redirectType === SuccessfulPersonaUpdateRedirectType.ADMIN
+            ? `/admin/assistants?u=${Date.now()}`
+            : `/chat`
+        );
+      } else {
+        setPopup({
+          type: "error",
+          message: `Failed to delete persona - ${await response.text()}`,
+        });
+      }
+    }
+  };
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -362,6 +395,14 @@ export function AssistantEditor({
             }
             setLabelToDelete(null);
           }}
+        />
+      )}
+      {deleteModalOpen && existingPersona && (
+        <DeleteEntityModal
+          entityType="Persona"
+          entityName={existingPersona.name}
+          onClose={closeDeleteModal}
+          onSubmit={handleDeletePersona}
         />
       )}
       {popup}
@@ -720,7 +761,6 @@ export function AssistantEditor({
                 name="description"
                 label="Description"
                 placeholder="Use this Assistant to help draft professional emails"
-                data-testid="assistant-description-input"
                 className="[&_input]:placeholder:text-text-muted/50"
               />
 
@@ -785,10 +825,7 @@ export function AssistantEditor({
                               </TooltipProvider>
                             </div>
                           </div>
-                          <p
-                            className="text-sm text-subtle"
-                            style={{ color: "rgb(113, 114, 121)" }}
-                          >
+                          <p className="text-sm text-neutral-700 dark:text-neutral-400">
                             Attach additional unique knowledge to this assistant
                           </p>
                         </div>
@@ -1177,7 +1214,7 @@ export function AssistantEditor({
                           setFieldValue("label_ids", newLabelIds);
                         }}
                         itemComponent={({ option }) => (
-                          <div className="flex items-center justify-between px-4 py-3 text-sm hover:bg-hover cursor-pointer border-b border-border last:border-b-0">
+                          <div className="flex items-center justify-between px-4 py-3 text-sm hover:bg-accent-background-hovered cursor-pointer border-b border-border last:border-b-0">
                             <div
                               className="flex-grow"
                               onClick={() => {
@@ -1313,18 +1350,10 @@ export function AssistantEditor({
                     explanationLink="https://docs.onyx.app/guides/assistants"
                     className="[&_textarea]:placeholder:text-text-muted/50"
                   />
-                  <div className="flex justify-end">
-                    {existingPersona && (
-                      <DeletePersonaButton
-                        personaId={existingPersona!.id}
-                        redirectType={SuccessfulPersonaUpdateRedirectType.ADMIN}
-                      />
-                    )}
-                  </div>
                 </>
               )}
 
-              <div className="mt-12 gap-x-2 w-full  justify-end flex">
+              <div className="mt-12 gap-x-2 w-full justify-end flex">
                 <Button
                   type="submit"
                   disabled={isSubmitting || isRequestSuccessful}
@@ -1338,6 +1367,18 @@ export function AssistantEditor({
                 >
                   Cancel
                 </Button>
+              </div>
+
+              <div className="flex justify-end">
+                {existingPersona && (
+                  <Button
+                    variant="destructive"
+                    onClick={openDeleteModal}
+                    type="button"
+                  >
+                    Delete
+                  </Button>
+                )}
               </div>
             </Form>
           );

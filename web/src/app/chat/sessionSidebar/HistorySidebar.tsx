@@ -19,9 +19,7 @@ import {
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChatSession } from "../interfaces";
-import { NEXT_PUBLIC_NEW_CHAT_DIRECTS_TO_SAME_PERSONA } from "@/lib/constants";
 import { Folder } from "../folders/interfaces";
-import { usePopup } from "@/components/admin/connectors/Popup";
 import { SettingsContext } from "@/components/settings/SettingsProvider";
 
 import { DocumentIcon2, NewChatIcon } from "@/components/icons/icons";
@@ -130,7 +128,8 @@ const SortableAssistant: React.FC<SortableAssistantProps> = ({
         size={16}
         className="w-3 ml-[2px] mr-[2px] group-hover:visible invisible flex-none cursor-grab"
       />
-      <button
+      <div
+        data-testid={`assistant-[${assistant.id}]`}
         onClick={(e) => {
           e.preventDefault();
           if (!isDragging) {
@@ -143,13 +142,13 @@ const SortableAssistant: React.FC<SortableAssistantProps> = ({
             : ""
         } relative flex items-center gap-x-2 py-1 px-2 rounded-md`}
       >
-        <AssistantIcon assistant={assistant} size={20} className="flex-none" />
+        <AssistantIcon assistant={assistant} size={16} className="flex-none" />
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
               <p
                 ref={nameRef}
-                className="text-base text-left w-fit line-clamp-1 text-ellipsis text-black"
+                className="text-base text-left w-fit line-clamp-1 text-ellipsis text-black dark:text-[#D4D4D4]"
               >
                 {assistant.name}
               </p>
@@ -174,7 +173,7 @@ const SortableAssistant: React.FC<SortableAssistantProps> = ({
         >
           <CircleX size={16} className="text-text-history-sidebar-button" />
         </button>
-      </button>
+      </div>
     </div>
   );
 };
@@ -251,9 +250,11 @@ export const HistorySidebar = forwardRef<HTMLDivElement, HistorySidebarProps>(
 
     const handleNewChat = () => {
       reset();
+      console.log("currentChatSession", currentChatSession);
+
       const newChatUrl =
         `/${page}` +
-        (NEXT_PUBLIC_NEW_CHAT_DIRECTS_TO_SAME_PERSONA && currentChatSession
+        (currentChatSession
           ? `?assistantId=${currentChatSession.persona_id}`
           : "");
       router.push(newChatUrl);
@@ -270,12 +271,13 @@ export const HistorySidebar = forwardRef<HTMLDivElement, HistorySidebarProps>(
             bg-background-sidebar
             w-full
             border-r 
+            dark:border-none
+            dark:text-[#D4D4D4]
             border-sidebar-border 
             flex 
             flex-col relative
             h-screen
             pt-2
-            
             transition-transform 
             `}
         >
@@ -289,13 +291,12 @@ export const HistorySidebar = forwardRef<HTMLDivElement, HistorySidebarProps>(
             />
           </div>
           {page == "chat" && (
-            <div className="px-4 px-1 gap-y-1 flex-col text-text-history-sidebar-button flex gap-x-1.5 items-center items-center">
+            <div className="px-4 px-1 -mx-2 gap-y-1 flex-col text-text-history-sidebar-button flex gap-x-1.5 items-center items-center">
               <Link
-                className="w-full px-2 py-1  rounded-md items-center hover:bg-hover cursor-pointer transition-all duration-150 flex gap-x-2"
+                className="w-full px-2 py-1 group rounded-md items-center hover:bg-accent-background-hovered cursor-pointer transition-all duration-150 flex gap-x-2"
                 href={
                   `/${page}` +
-                  (NEXT_PUBLIC_NEW_CHAT_DIRECTS_TO_SAME_PERSONA &&
-                  currentChatSession?.persona_id
+                  (currentChatSession
                     ? `?assistantId=${currentChatSession?.persona_id}`
                     : "")
                 }
@@ -308,26 +309,15 @@ export const HistorySidebar = forwardRef<HTMLDivElement, HistorySidebarProps>(
                   }
                 }}
               >
-                <NewChatIcon
-                  size={20}
-                  className="flex-none text-text-history-sidebar-button"
-                />
-                <p className="my-auto flex font-normal items-center text-base">
-                  Start New Chat
+                <NewChatIcon size={20} className="flex-none" />
+                <p className="my-auto flex font-normal  items-center ">
+                  New Chat
                 </p>
               </Link>
               {user?.preferences?.shortcut_enabled && (
                 <Link
-                  className="w-full px-2 py-1  rounded-md items-center hover:bg-hover cursor-pointer transition-all duration-150 flex gap-x-2"
+                  className="w-full px-2 py-1  rounded-md items-center hover:bg-accent-background-hovered cursor-pointer transition-all duration-150 flex gap-x-2"
                   href="/chat/input-prompts"
-                  onClick={(e) => {
-                    if (e.metaKey || e.ctrlKey) {
-                      return;
-                    }
-                    if (handleNewChat) {
-                      handleNewChat();
-                    }
-                  }}
                 >
                   <DocumentIcon2
                     size={20}
@@ -341,8 +331,8 @@ export const HistorySidebar = forwardRef<HTMLDivElement, HistorySidebarProps>(
             </div>
           )}
 
-          <div className="h-full relative overflow-x-hidden overflow-y-auto">
-            <div className="flex px-4 font-normal text-sm gap-x-2 leading-normal text-[#6c6c6c]/80 items-center font-normal leading-normal">
+          <div className="h-full  relative overflow-x-hidden overflow-y-auto">
+            <div className="flex px-4 font-normal text-sm gap-x-2 leading-normal text-text-500/80 dark:text-[#D4D4D4] items-center font-normal leading-normal">
               Assistants
             </div>
             <DndContext
@@ -385,7 +375,7 @@ export const HistorySidebar = forwardRef<HTMLDivElement, HistorySidebarProps>(
             <div className="w-full px-4">
               <button
                 onClick={() => setShowAssistantsModal(true)}
-                className="w-full cursor-pointer text-base text-black hover:bg-background-chat-hover flex items-center gap-x-2 py-1 px-2 rounded-md"
+                className="w-full cursor-pointer text-base text-black dark:text-[#D4D4D4] hover:bg-background-chat-hover flex items-center gap-x-2 py-1 px-2 rounded-md"
               >
                 Explore Assistants
               </button>

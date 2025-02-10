@@ -7,6 +7,7 @@ import requests
 from requests import HTTPError
 
 from onyx.auth.schemas import UserRole
+from onyx.configs.constants import FASTAPI_USERS_AUTH_COOKIE_NAME
 from onyx.server.documents.models import PaginatedReturn
 from onyx.server.models import FullUserSnapshot
 from tests.integration.common_utils.constants import API_SERVER_URL
@@ -82,7 +83,7 @@ class UserManager:
         response.raise_for_status()
 
         cookies = response.cookies.get_dict()
-        session_cookie = cookies.get("fastapiusersauth")
+        session_cookie = cookies.get(FASTAPI_USERS_AUTH_COOKIE_NAME)
 
         if not session_cookie:
             raise Exception("Failed to login")
@@ -91,6 +92,7 @@ class UserManager:
 
         # Set cookies in the headers
         test_user.headers["Cookie"] = f"fastapiusersauth={session_cookie}; "
+        test_user.cookies = {"fastapiusersauth": session_cookie}
         return test_user
 
     @staticmethod
@@ -101,6 +103,7 @@ class UserManager:
         response = requests.get(
             url=f"{API_SERVER_URL}/me",
             headers=user_to_verify.headers,
+            cookies=user_to_verify.cookies,
         )
 
         if user_to_verify.is_active is False:
@@ -165,6 +168,7 @@ class UserManager:
         target_status: bool,
         user_performing_action: DATestUser,
     ) -> DATestUser:
+        url_substring: str
         if target_status is True:
             url_substring = "activate"
         elif target_status is False:

@@ -10,7 +10,7 @@ import {
 } from "@/lib/types";
 import useSWR, { mutate, useSWRConfig } from "swr";
 import { errorHandlingFetcher } from "./fetcher";
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { DateRangePickerValue } from "@/app/ee/admin/performance/DateRangeSelector";
 import { Filters, SourceMetadata } from "./search/interfaces";
 import {
@@ -28,6 +28,8 @@ import { isAnthropic } from "@/app/admin/configuration/llm/interfaces";
 import { getSourceMetadata } from "./sources";
 import { AuthType, NEXT_PUBLIC_CLOUD_ENABLED } from "./constants";
 import { useUser } from "@/components/user/UserProvider";
+import { SEARCH_TOOL_ID } from "@/app/chat/tools/constants";
+import { updateTemperatureOverrideForChatSession } from "@/app/chat/lib";
 
 const CREDENTIAL_URL = "/api/manage/admin/credential";
 
@@ -340,8 +342,12 @@ export function useFilters(): FilterManager {
   };
 }
 
-export const useUsers = () => {
-  const url = "/api/manage/users";
+interface UseUsersParams {
+  includeApiKeys: boolean;
+}
+
+export const useUsers = ({ includeApiKeys }: UseUsersParams) => {
+  const url = `/api/manage/users?include_api_keys=${includeApiKeys}`;
 
   const swrResponse = useSWR<AllUsersResponse>(url, errorHandlingFetcher);
 
@@ -360,13 +366,21 @@ export interface LlmOverride {
 export interface LlmOverrideManager {
   llmOverride: LlmOverride;
   updateLLMOverride: (newOverride: LlmOverride) => void;
-  temperature: number | null;
-  updateTemperature: (temperature: number | null) => void;
+  temperature: number;
+  updateTemperature: (temperature: number) => void;
   updateModelOverrideForChatSession: (chatSession?: ChatSession) => void;
   imageFilesPresent: boolean;
   updateImageFilesPresent: (present: boolean) => void;
   liveAssistant: Persona | null;
+  maxTemperature: number;
 }
+
+// Things to test
+// 1. User override
+// 2. User preference (defaults to system wide default if no preference set)
+// 3. Current assistant
+// 4. Current chat session
+// 5. Live assistant
 
 /*
 LLM Override is as follows (i.e. this order)
@@ -386,6 +400,20 @@ Changes take place as
 - (uploadLLMOverride) User explicitly setting a model override (and we explicitly override and set the userSpecifiedOverride which we'll use in place of the user preferences unless overridden by an assistant)
 
 If we have a live assistant, we should use that model override
+
+Relevant test: `llm_ordering.spec.ts`.
+
+Temperature override is set as follows:
+- For existing chat sessions:
+  - If the user has previously overridden the temperature for a specific chat session, 
+    that value is persisted and used when the user returns to that chat.
+  - This persistence applies even if the temperature was set before sending the first message in the chat.
+- For new chat sessions:
+  - If the search tool is available, the default temperature is set to 0.
+  - If the search tool is not available, the default temperature is set to 0.5.
+
+This approach ensures that user preferences are maintained for existing chats while 
+providing appropriate defaults for new conversations based on the available tools.
 */
 
 export function useLlmOverride(
@@ -398,11 +426,6 @@ export function useLlmOverride(
   const [chatSession, setChatSession] = useState<ChatSession | null>(null);
 
   const llmOverrideUpdate = () => {
-    if (!chatSession && currentChatSession) {
-      setChatSession(currentChatSession || null);
-      return;
-    }
-
     if (liveAssistant?.llm_model_version_override) {
       setLlmOverride(
         getValidLlmOverride(liveAssistant.llm_model_version_override)
@@ -490,23 +513,67 @@ export function useLlmOverride(
     }
   };
 
-  const [temperature, setTemperature] = useState<number | null>(0);
-
-  useEffect(() => {
+  const [temperature, setTemperature] = useState<number>(() => {
     llmOverrideUpdate();
-  }, [liveAssistant, currentChatSession]);
+
+    if (currentChatSession?.current_temperature_override != null) {
+      return Math.min(
+        currentChatSession.current_temperature_override,
+        isAnthropic(llmOverride.provider, llmOverride.modelName) ? 1.0 : 2.0
+      );
+    } else if (
+      liveAssistant?.tools.some((tool) => tool.name === SEARCH_TOOL_ID)
+    ) {
+      return 0;
+    }
+    return 0.5;
+  });
+
+  const maxTemperature = useMemo(() => {
+    return isAnthropic(llmOverride.provider, llmOverride.modelName) ? 1.0 : 2.0;
+  }, [llmOverride]);
 
   useEffect(() => {
     if (isAnthropic(llmOverride.provider, llmOverride.modelName)) {
-      setTemperature((prevTemp) => Math.min(prevTemp ?? 0, 1.0));
+      const newTemperature = Math.min(temperature, 1.0);
+      setTemperature(newTemperature);
+      if (chatSession?.id) {
+        updateTemperatureOverrideForChatSession(chatSession.id, newTemperature);
+      }
     }
   }, [llmOverride]);
 
-  const updateTemperature = (temperature: number | null) => {
+  useEffect(() => {
+    if (!chatSession && currentChatSession) {
+      setChatSession(currentChatSession || null);
+      if (temperature) {
+        updateTemperatureOverrideForChatSession(
+          currentChatSession.id,
+          temperature
+        );
+      }
+      return;
+    }
+
+    if (currentChatSession?.current_temperature_override) {
+      setTemperature(currentChatSession.current_temperature_override);
+    } else if (
+      liveAssistant?.tools.some((tool) => tool.name === SEARCH_TOOL_ID)
+    ) {
+      setTemperature(0);
+    } else {
+      setTemperature(0.5);
+    }
+  }, [liveAssistant, currentChatSession]);
+
+  const updateTemperature = (temperature: number) => {
     if (isAnthropic(llmOverride.provider, llmOverride.modelName)) {
-      setTemperature((prevTemp) => Math.min(temperature ?? 0, 1.0));
+      setTemperature((prevTemp) => Math.min(temperature, 1.0));
     } else {
       setTemperature(temperature);
+    }
+    if (chatSession) {
+      updateTemperatureOverrideForChatSession(chatSession.id, temperature);
     }
   };
 
@@ -519,6 +586,7 @@ export function useLlmOverride(
     imageFilesPresent,
     updateImageFilesPresent,
     liveAssistant: liveAssistant ?? null,
+    maxTemperature,
   };
 }
 
@@ -579,9 +647,10 @@ export const useUserGroups = (): {
 
 const MODEL_DISPLAY_NAMES: { [key: string]: string } = {
   // OpenAI models
+  "o3-mini": "O3 Mini",
   "o1-mini": "O1 Mini",
   "o1-preview": "O1 Preview",
-  "o1-2024-12-17": "O1",
+  o1: "O1",
   "gpt-4": "GPT 4",
   "gpt-4o": "GPT 4o",
   "gpt-4o-2024-08-06": "GPT 4o (Structured Outputs)",
@@ -683,7 +752,14 @@ export function getDisplayNameForModel(modelName: string): string {
 }
 
 export const defaultModelsByProvider: { [name: string]: string[] } = {
-  openai: ["gpt-4", "gpt-4o", "gpt-4o-mini", "o1-mini", "o1-preview"],
+  openai: [
+    "gpt-4",
+    "gpt-4o",
+    "gpt-4o-mini",
+    "o3-mini",
+    "o1-mini",
+    "o1-preview",
+  ],
   bedrock: [
     "meta.llama3-1-70b-instruct-v1:0",
     "meta.llama3-1-8b-instruct-v1:0",

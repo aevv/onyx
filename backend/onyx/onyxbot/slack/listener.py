@@ -5,6 +5,7 @@ import sys
 import threading
 import time
 from collections.abc import Callable
+from contextvars import Token
 from threading import Event
 from types import FrameType
 from typing import Any
@@ -30,7 +31,9 @@ from onyx.configs.onyxbot_configs import DANSWER_BOT_REPHRASE_MESSAGE
 from onyx.configs.onyxbot_configs import DANSWER_BOT_RESPOND_EVERY_CHANNEL
 from onyx.configs.onyxbot_configs import NOTIFY_SLACKBOT_NO_ANSWER
 from onyx.connectors.slack.utils import expert_info_from_slack_id
-from onyx.context.search.retrieval.search_runner import download_nltk_data
+from onyx.context.search.retrieval.search_runner import (
+    download_nltk_data,
+)
 from onyx.db.engine import get_all_tenant_ids
 from onyx.db.engine import get_session_with_tenant
 from onyx.db.models import SlackBot
@@ -248,6 +251,8 @@ class SlackbotHandler:
         """
         all_tenants = get_all_tenant_ids()
 
+        token: Token[str]
+
         # 1) Try to acquire locks for new tenants
         for tenant_id in all_tenants:
             if (
@@ -405,12 +410,26 @@ class SlackbotHandler:
     def start_socket_client(
         self, slack_bot_id: int, tenant_id: str | None, slack_bot_tokens: SlackBotTokens
     ) -> None:
-        logger.info(
-            f"Starting socket client for tenant: {tenant_id}, app: {slack_bot_id}"
-        )
         socket_client: TenantSocketModeClient = _get_socket_client(
             slack_bot_tokens, tenant_id, slack_bot_id
         )
+
+        try:
+            bot_info = socket_client.web_client.auth_test()
+            if bot_info["ok"]:
+                bot_user_id = bot_info["user_id"]
+                user_info = socket_client.web_client.users_info(user=bot_user_id)
+                if user_info["ok"]:
+                    bot_name = (
+                        user_info["user"]["real_name"] or user_info["user"]["name"]
+                    )
+                    logger.info(
+                        f"Started socket client for Slackbot with name '{bot_name}' (tenant: {tenant_id}, app: {slack_bot_id})"
+                    )
+        except Exception as e:
+            logger.warning(
+                f"Could not fetch bot name: {e} for tenant: {tenant_id}, app: {slack_bot_id}"
+            )
 
         # Append the event handler
         process_slack_event = create_process_slack_event()
@@ -769,6 +788,7 @@ def process_message(
         client=client.web_client, channel_id=channel
     )
 
+    token: Token[str] | None = None
     # Set the current tenant ID at the beginning for all DB calls within this thread
     if client.tenant_id:
         logger.info(f"Setting tenant ID to {client.tenant_id}")
@@ -781,22 +801,8 @@ def process_message(
                 channel_name=channel_name,
             )
 
-            # Be careful about this default, don't want to accidentally spam every channel
-            # Users should be able to DM slack bot in their private channels though
-            if (
-                slack_channel_config is None
-                and not respond_every_channel
-                # Can't have configs for DMs so don't toss them out
-                and not is_dm
-                # If /OnyxBot (is_bot_msg) or @OnyxBot (bypass_filters)
-                # always respond with the default configs
-                and not (details.is_bot_msg or details.bypass_filters)
-            ):
-                return
-
             follow_up = bool(
-                slack_channel_config
-                and slack_channel_config.channel_config
+                slack_channel_config.channel_config
                 and slack_channel_config.channel_config.get("follow_up_tags")
                 is not None
             )
@@ -823,7 +829,7 @@ def process_message(
                 if notify_no_answer:
                     apologize_for_fail(details, client)
     finally:
-        if client.tenant_id:
+        if token:
             CURRENT_TENANT_ID_CONTEXTVAR.reset(token)
 
 

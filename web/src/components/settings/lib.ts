@@ -51,6 +51,7 @@ export async function fetchSettingsSS(): Promise<CombinedSettings | null> {
           notifications: [],
           needs_reindexing: false,
           anonymous_user_enabled: false,
+          pro_search_disabled: false,
         };
       } else {
         throw new Error(
@@ -91,6 +92,10 @@ export async function fetchSettingsSS(): Promise<CombinedSettings | null> {
       } else {
         customAnalyticsScript = await results[2].json();
       }
+    }
+
+    if (enterpriseSettings && settings.pro_search_disabled == null) {
+      settings.pro_search_disabled = true;
     }
 
     const webVersion = getWebVersion();

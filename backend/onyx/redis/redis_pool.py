@@ -25,6 +25,7 @@ from onyx.configs.app_configs import REDIS_REPLICA_HOST
 from onyx.configs.app_configs import REDIS_SSL
 from onyx.configs.app_configs import REDIS_SSL_CA_CERTS
 from onyx.configs.app_configs import REDIS_SSL_CERT_REQS
+from onyx.configs.constants import FASTAPI_USERS_AUTH_COOKIE_NAME
 from onyx.configs.constants import REDIS_SOCKET_KEEPALIVE_OPTIONS
 from onyx.utils.logger import setup_logger
 
@@ -113,6 +114,8 @@ class TenantRedis(redis.Redis):
             "reacquire",
             "create_lock",
             "startswith",
+            "smembers",
+            "sismember",
             "sadd",
             "srem",
             "scard",
@@ -122,7 +125,7 @@ class TenantRedis(redis.Redis):
             "ttl",
         ]  # Regular methods that need simple prefixing
 
-        if item == "scan_iter":
+        if item == "scan_iter" or item == "sscan_iter":
             return self._prefix_scan_iter(original_attr)
         elif item in methods_to_wrap and callable(original_attr):
             return self._prefix_method(original_attr)
@@ -285,7 +288,7 @@ async def get_async_redis_connection() -> aioredis.Redis:
 
 
 async def retrieve_auth_token_data_from_redis(request: Request) -> dict | None:
-    token = request.cookies.get("fastapiusersauth")
+    token = request.cookies.get(FASTAPI_USERS_AUTH_COOKIE_NAME)
     if not token:
         logger.debug("No auth token cookie found")
         return None

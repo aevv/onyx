@@ -409,6 +409,11 @@ EXPERIMENTAL_CHECKPOINTING_ENABLED = (
     os.environ.get("EXPERIMENTAL_CHECKPOINTING_ENABLED", "").lower() == "true"
 )
 
+LEAVE_CONNECTOR_ACTIVE_ON_INITIALIZATION_FAILURE = (
+    os.environ.get("LEAVE_CONNECTOR_ACTIVE_ON_INITIALIZATION_FAILURE", "").lower()
+    == "true"
+)
+
 PRUNING_DISABLED = -1
 DEFAULT_PRUNING_FREQ = 60 * 60 * 24  # Once a day
 
@@ -477,6 +482,12 @@ INDEXING_SIZE_WARNING_THRESHOLD = int(
 # during indexing, will log verbose memory diff stats every x batches and at the end.
 # 0 disables this behavior and is the default.
 INDEXING_TRACER_INTERVAL = int(os.environ.get("INDEXING_TRACER_INTERVAL") or 0)
+
+# Enable multi-threaded embedding model calls for parallel processing
+# Note: only applies for API-based embedding models
+INDEXING_EMBEDDING_MODEL_NUM_THREADS = int(
+    os.environ.get("INDEXING_EMBEDDING_MODEL_NUM_THREADS") or 1
+)
 
 # During an indexing attempt, specifies the number of batches which are allowed to
 # exception without aborting the attempt.
@@ -611,3 +622,8 @@ POD_NAMESPACE = os.environ.get("POD_NAMESPACE")
 DEV_MODE = os.environ.get("DEV_MODE", "").lower() == "true"
 
 TEST_ENV = os.environ.get("TEST_ENV", "").lower() == "true"
+
+# Set to true to mock LLM responses for testing purposes
+MOCK_LLM_RESPONSE = (
+    os.environ.get("MOCK_LLM_RESPONSE") if os.environ.get("MOCK_LLM_RESPONSE") else None
+)

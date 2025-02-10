@@ -1,6 +1,8 @@
 import time
 from datetime import datetime
 from datetime import timezone
+from typing import Any
+from typing import cast
 
 import redis
 from celery import Celery
@@ -19,6 +21,7 @@ from onyx.configs.constants import DocumentSource
 from onyx.configs.constants import OnyxCeleryPriority
 from onyx.configs.constants import OnyxCeleryQueues
 from onyx.configs.constants import OnyxCeleryTask
+from onyx.configs.constants import OnyxRedisConstants
 from onyx.db.engine import get_db_current_time
 from onyx.db.engine import get_session_with_tenant
 from onyx.db.enums import ConnectorCredentialPairStatus
@@ -37,7 +40,6 @@ from onyx.redis.redis_connector import RedisConnector
 from onyx.redis.redis_connector_index import RedisConnectorIndex
 from onyx.redis.redis_connector_index import RedisConnectorIndexPayload
 from onyx.redis.redis_pool import redis_lock_dump
-from onyx.redis.redis_pool import SCAN_ITER_COUNT_DEFAULT
 from onyx.utils.logger import setup_logger
 
 logger = setup_logger()
@@ -97,16 +99,16 @@ class IndexingCallback(IndexingHeartbeatInterface):
     def __init__(
         self,
         parent_pid: int,
-        stop_key: str,
-        generator_progress_key: str,
+        redis_connector: RedisConnector,
+        redis_connector_index: RedisConnectorIndex,
         redis_lock: RedisLock,
         redis_client: Redis,
     ):
         super().__init__()
         self.parent_pid = parent_pid
+        self.redis_connector: RedisConnector = redis_connector
+        self.redis_connector_index: RedisConnectorIndex = redis_connector_index
         self.redis_lock: RedisLock = redis_lock
-        self.stop_key: str = stop_key
-        self.generator_progress_key: str = generator_progress_key
         self.redis_client = redis_client
         self.started: datetime = datetime.now(timezone.utc)
         self.redis_lock.reacquire()
@@ -118,7 +120,7 @@ class IndexingCallback(IndexingHeartbeatInterface):
         self.last_parent_check = time.monotonic()
 
     def should_stop(self) -> bool:
-        if self.redis_client.exists(self.stop_key):
+        if self.redis_connector.stop.fenced:
             return True
 
         return False
@@ -141,6 +143,8 @@ class IndexingCallback(IndexingHeartbeatInterface):
         #         self.last_parent_check = now
 
         try:
+            self.redis_connector.prune.set_active()
+
             current_time = time.monotonic()
             if current_time - self.last_lock_monotonic >= (
                 CELERY_GENERIC_BEAT_LOCK_TIMEOUT / 4
@@ -163,7 +167,9 @@ class IndexingCallback(IndexingHeartbeatInterface):
             redis_lock_dump(self.redis_lock, self.redis_client)
             raise
 
-        self.redis_client.incrby(self.generator_progress_key, amount)
+        self.redis_client.incrby(
+            self.redis_connector_index.generator_progress_key, amount
+        )
 
 
 def validate_indexing_fence(
@@ -304,10 +310,13 @@ def validate_indexing_fences(
 
     # Use replica for this because the worst thing that happens
     # is that we don't run the validation on this pass
-    for key_bytes in r_replica.scan_iter(
-        RedisConnectorIndex.FENCE_PREFIX + "*", count=SCAN_ITER_COUNT_DEFAULT
-    ):
-        lock_beat.reacquire()
+    keys = cast(set[Any], r_replica.smembers(OnyxRedisConstants.ACTIVE_FENCES))
+    for key in keys:
+        key_bytes = cast(bytes, key)
+        key_str = key_bytes.decode("utf-8")
+        if not key_str.startswith(RedisConnectorIndex.FENCE_PREFIX):
+            continue
+
         with get_session_with_tenant(tenant_id) as db_session:
             validate_indexing_fence(
                 tenant_id,
@@ -316,6 +325,9 @@ def validate_indexing_fences(
                 r_celery,
                 db_session,
             )
+
+        lock_beat.reacquire()
+
     return
 
 
@@ -438,6 +450,7 @@ def try_creating_indexing_task(
     if not acquired:
         return None
 
+    redis_connector_index: RedisConnectorIndex
     try:
         redis_connector = RedisConnector(tenant_id, cc_pair.id)
         redis_connector_index = redis_connector.new_index(search_settings.id)

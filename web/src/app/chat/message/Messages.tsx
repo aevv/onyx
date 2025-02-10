@@ -64,9 +64,8 @@ import { MemoizedAnchor, MemoizedParagraph } from "./MemoizedTextComponents";
 import { extractCodeText, preprocessLaTeX } from "./codeUtils";
 import ToolResult from "../../../components/tools/ToolResult";
 import CsvContent from "../../../components/tools/CSVContent";
-import SourceCard, {
-  SeeMoreBlock,
-} from "@/components/chat_search/sources/SourceCard";
+import { SeeMoreBlock } from "@/components/chat/sources/SourceCard";
+import { SourceCard } from "./SourcesDisplay";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
@@ -214,7 +213,7 @@ export const AIMessage = ({
   retrievalDisabled?: boolean;
   overriddenModel?: string;
   regenerate?: (modelOverRide: LlmOverride) => Promise<void>;
-  setPresentingDocument?: (document: OnyxDocument) => void;
+  setPresentingDocument: (document: OnyxDocument) => void;
 }) => {
   const toolCallGenerating = toolCall && !toolCall.tool_result;
 
@@ -324,10 +323,6 @@ export const AIMessage = ({
     ? otherMessagesCanSwitchTo?.indexOf(messageId)
     : undefined;
 
-  const uniqueSources: ValidSources[] = Array.from(
-    new Set((docs || []).map((doc) => doc.source_type))
-  ).slice(0, 3);
-
   const webSourceDomains: string[] = Array.from(
     new Set(
       docs
@@ -347,6 +342,9 @@ export const AIMessage = ({
     () => ({
       a: anchorCallback,
       p: paragraphCallback,
+      b: ({ node, className, children }: any) => {
+        return <span className={className}>||||{children}</span>;
+      },
       code: ({ node, className, children }: any) => {
         const codeText = extractCodeText(
           node,
@@ -402,9 +400,9 @@ export const AIMessage = ({
 
   return (
     <div
-      id="onyx-ai-message"
+      id={isComplete ? "onyx-ai-message" : undefined}
       ref={trackedElementRef}
-      className={`py-5 ml-4 lg:px-5 relative flex `}
+      className={`py-5 text-text ml-4 lg:px-5 relative flex `}
     >
       <div
         className={`mx-auto ${
@@ -412,7 +410,7 @@ export const AIMessage = ({
         }  max-w-message-max`}
       >
         <div className={`lg:mr-12 ${!shared && "mobile:ml-0 md:ml-8"}`}>
-          <div className="flex">
+          <div className="flex items-start">
             <AssistantIcon
               className="mobile:hidden"
               size={24}
@@ -489,7 +487,11 @@ export const AIMessage = ({
                       )}
 
                     {docs && docs.length > 0 && (
-                      <div className="mobile:hidden mt-2 -mx-8 w-full mb-4 flex relative">
+                      <div
+                        className={`mobile:hidden ${
+                          query && "mt-2"
+                        }  -mx-8 w-full mb-4 flex relative`}
+                      >
                         <div className="w-full">
                           <div className="px-8 flex gap-x-2">
                             {!settings?.isMobile &&
@@ -498,7 +500,7 @@ export const AIMessage = ({
                                 .slice(0, 2)
                                 .map((doc: OnyxDocument, ind: number) => (
                                   <SourceCard
-                                    doc={doc}
+                                    document={doc}
                                     key={ind}
                                     setPresentingDocument={
                                       setPresentingDocument
@@ -508,7 +510,7 @@ export const AIMessage = ({
                             <SeeMoreBlock
                               toggled={toggledDocumentSidebar!}
                               toggleDocumentSelection={toggleDocumentSelection!}
-                              uniqueSources={uniqueSources}
+                              docs={docs}
                               webSourceDomains={webSourceDomains}
                             />
                           </div>
@@ -652,6 +654,7 @@ export const AIMessage = ({
                               onClick={() => handleFeedback("dislike")}
                             />
                           </CustomTooltip>
+
                           {regenerate && (
                             <CustomTooltip
                               disabled={isRegenerateDropdownVisible}
@@ -798,7 +801,7 @@ function MessageSwitcher({
         onClick={currentPage === 1 ? undefined : handlePrevious}
       />
 
-      <span className="text-emphasis select-none">
+      <span className="text-text-darker select-none">
         {currentPage} / {totalPages}
       </span>
 
@@ -909,7 +912,7 @@ export const HumanMessage = ({
                         break-word
                         overscroll-contain
                         outline-none 
-                        placeholder-gray-400 
+                        placeholder-text-400 
                         resize-none
                         text-text-editing-message
                         pl-4
@@ -942,7 +945,7 @@ export const HumanMessage = ({
                         <button
                           className={`
                           w-fit
-                          bg-accent 
+                          bg-agent 
                           text-inverted 
                           text-sm
                           rounded-lg 
@@ -974,7 +977,7 @@ export const HumanMessage = ({
                           bg-background-strong 
                           text-sm
                           rounded-lg
-                          hover:bg-hover-emphasis
+                          hover:bg-accent-background-hovered-emphasis
                         `}
                           onClick={() => {
                             setEditedContent(content);
@@ -997,7 +1000,7 @@ export const HumanMessage = ({
                           <Tooltip>
                             <TooltipTrigger>
                               <HoverableIcon
-                                icon={<FiEdit2 className="text-gray-600" />}
+                                icon={<FiEdit2 className="text-text-600" />}
                                 onClick={() => {
                                   setIsEditing(true);
                                   setIsHovered(false);
@@ -1020,7 +1023,7 @@ export const HumanMessage = ({
                           !isEditing &&
                           (!files || files.length === 0)
                         ) && "ml-auto"
-                      } relative flex-none max-w-[70%] mb-auto whitespace-break-spaces rounded-3xl bg-user px-5 py-2.5`}
+                      } relative text-text flex-none max-w-[70%] mb-auto whitespace-break-spaces rounded-3xl bg-user px-5 py-2.5`}
                     >
                       {content}
                     </div>

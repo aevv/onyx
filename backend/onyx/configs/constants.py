@@ -15,6 +15,12 @@ ID_SEPARATOR = ":;:"
 DEFAULT_BOOST = 0
 SESSION_KEY = "session"
 
+# Cookies
+FASTAPI_USERS_AUTH_COOKIE_NAME = (
+    "fastapiusersauth"  # Currently a constant, but logic allows for configuration
+)
+TENANT_ID_COOKIE_NAME = "onyx_tid"  # tenant id - for workaround cases
+
 NO_AUTH_USER_ID = "__no_auth_user__"
 NO_AUTH_USER_EMAIL = "anonymous@onyx.app"
 
@@ -38,6 +44,13 @@ DEFAULT_PERSONA_ID = 0
 
 DEFAULT_CC_PAIR_ID = 1
 
+# subquestion level and question number for basic flow
+BASIC_KEY = (-1, -1)
+AGENT_SEARCH_INITIAL_KEY = (0, 0)
+CANCEL_CHECK_INTERVAL = 20
+DISPATCH_SEP_CHAR = "\n"
+FORMAT_DOCS_SEPARATOR = "\n\n"
+NUM_EXPLORATORY_DOCS = 15
 # Postgres connection constants for application_name
 POSTGRES_WEB_APP_NAME = "web"
 POSTGRES_INDEXER_APP_NAME = "indexer"
@@ -252,6 +265,11 @@ class PostgresAdvisoryLocks(Enum):
 
 
 class OnyxCeleryQueues:
+    # "celery" is the default queue defined by celery and also the queue
+    # we are running in the primary worker to run system tasks
+    # Tasks running in this queue should be designed specifically to run quickly
+    PRIMARY = "celery"
+
     # Light queue
     VESPA_METADATA_SYNC = "vespa_metadata_sync"
     DOC_PERMISSIONS_UPSERT = "doc_permissions_upsert"
@@ -301,7 +319,19 @@ class OnyxRedisLocks:
 
 
 class OnyxRedisSignals:
-    VALIDATE_INDEXING_FENCES = "signal:validate_indexing_fences"
+    BLOCK_VALIDATE_INDEXING_FENCES = "signal:block_validate_indexing_fences"
+    BLOCK_VALIDATE_EXTERNAL_GROUP_SYNC_FENCES = (
+        "signal:block_validate_external_group_sync_fences"
+    )
+    BLOCK_VALIDATE_PERMISSION_SYNC_FENCES = (
+        "signal:block_validate_permission_sync_fences"
+    )
+    BLOCK_VALIDATE_PRUNING_FENCES = "signal:block_validate_pruning_fences"
+    BLOCK_BUILD_FENCE_LOOKUP_TABLE = "signal:block_build_fence_lookup_table"
+
+
+class OnyxRedisConstants:
+    ACTIVE_FENCES = "active_fences"
 
 
 class OnyxCeleryPriority(int, Enum):
